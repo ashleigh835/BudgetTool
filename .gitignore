@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Code Editor Workspsace Files
+.vscode/*
+
+# csv files
+data/*
