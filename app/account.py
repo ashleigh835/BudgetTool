@@ -67,7 +67,7 @@ class Account(object):
     def _load_transactions_from_csv(self, path) -> pd.DataFrame():
         self._transaction_class_type = self._determine_transaction_style()
         df = self._import_from_csv(path) 
-        for index, transaction_detail in df.tail(3).iterrows():
+        for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
     
