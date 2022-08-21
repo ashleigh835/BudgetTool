@@ -1,6 +1,8 @@
 from common.config_info import Config
 from common.mapping import Mapping
 
+from app.account import Account
+
 from helpers.input_helpers import input_yn
 
 import json
@@ -20,7 +22,10 @@ class GUI(object):
         self._user_dict = self._parse_users()
         self._users = self._list_users()
 
-        # self._accounts = self._parse_accounts()
+        self._account_dict = self._parse_accounts()
+        self._accounts = self._list_accounts()
+        self._account_nicknames = self._list_account_nicknames()
+        pass
 
     def __reset__(self) -> None:
         self.__init__()
@@ -102,10 +107,22 @@ class GUI(object):
         return self._rewrite_config(config)
 
     def _parse_users(self) -> list:
-        return dict((i,j) for i,j in enumerate(self._account_config.keys()))         
-    
-    # def _parse_accounts(self):
-    #     print(self._account_config)
+        return dict((i,j) for i,j in enumerate(self._account_config.keys()))      
 
     def _list_users(self) -> list:
-        return [self._user_dict[user] for user in self._user_dict.keys()]
+        return [self._user_dict[user] for user in self._user_dict.keys()]   
+    
+    def _parse_accounts(self) -> list:
+        accounts = []
+        for account_holder in self._users:
+            for account_config in self._account_config[account_holder]:
+                account = Account(account_holder, **account_config)
+                accounts += [account]
+        return dict((i,j) for i,j in enumerate(accounts))
+
+    def _list_accounts(self) -> list:
+        return [self._account_dict[account] for account in self._account_dict.keys()]
+
+    def _list_account_nicknames(self) -> list:
+        return [self._account_dict[account]._account_name for account in self._account_dict.keys()]
+
