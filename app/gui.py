@@ -1,5 +1,4 @@
 from common.config_info import Config
-from common.mapping import Mapping
 
 from app.account import Account
 
@@ -13,7 +12,6 @@ class GUI(object):
 
     def __init__(self) -> None:
         self.settings = Config().settings()
-        self._account_type_map = Mapping()._account_type
         
         self._account_config_path = self.settings['account_config']
         self._account_config = self._determine_config()
@@ -44,38 +42,42 @@ class GUI(object):
 
     def _create_account_dict(self, confirm_user=False) -> dict:
         print('Please provide information below')
-        account_name = input('Account Nickname: ')
-        account_user = input('Account Holder: ')
-
-        if confirm_user:
-            if account_user not in self._users:
-                print(f'That user did not already exist, add new user: {account_user}?')
-                account_user_add_input = input_yn()
-                if account_user_add_input == 'N':
-                    account_user = self._determine_user()
-
-        if account_user == None:
+        account_name = self._determine_nickname()
+        if account_name == None:
             return
 
-        account_type = input('Account Type C/S/I (Checking/Savings/Investment): ')
-        while account_type.upper() not in ['C','S','I']:
-            print('please enter one of the following: C/S/I (Checking/Savings/Investment).')
-            account_type = input('C/S/I: ')
-        return {
-            account_user : [{
-                'account_name' : account_name ,
-                'account_type' : self._account_type_map[account_type] ,
-            }]
-        }
-    
-    def _determine_user(self) -> None:
-        print('Which account holder did you mean? User the number listed below to choose your option')
+        account_holder = self._determine_user(confirm_user)
+        if account_holder == None:
+            return
+        
+        account = Account(account_holder, account_name)
+        return account._config
+
+    def _determine_nickname(self, confirm_nickname=False) -> None:
+        account_name = input('Account Nickname: ')
+        if confirm_nickname:
+            while account_name in self._account_nicknames:
+                print(f'That nickname already exist, choose something else (or C to cancel): ')
+                account_name = input('Account Nickname: ')      
+            if account_name.lower() == 'c': return 
+        return account_name
+
+    def _determine_user(self, confirm_user=False) -> None:
+        account_holder = input('Account Holder: ')
+        if confirm_user:
+            if account_holder not in self._users:
+                print(f'That user did not already exist, add new user: {account_holder}?')
+                if input_yn() == 'N': account_holder = self._determine_existing_user()
+        return account_holder
+
+    def _determine_existing_user(self, account_holder=None) -> None:
+        print('Which account holder did you mean? Use the number listed below to choose your option')
         for indx in self._user_dict.keys(): print(f'{indx}: {self._user_dict[indx]}')
         print('C: Cancel')
         account_user_choose_input = input('please enter an index from above or C to cancel: ')
         while account_user_choose_input.lower() not in [str(indx) for indx in self._user_dict.keys()]+['c']:
             account_user_choose_input = input(f'please enter an index from above or C to cancel: ')        
-        if account_user_choose_input!='c': return self._user_dict[int(account_user_choose_input)]
+        if account_user_choose_input.lower() !='c': return self._user_dict[int(account_user_choose_input)]
 
     def _add_account(self) -> None:
         config = self._create_account_dict(confirm_user=True)

@@ -1,21 +1,12 @@
-# from app.account import Account
-
-# import os
+import os
 
 from app.gui import GUI
 
 gui = GUI()
 
-# account = Account()
-# for entry in os.scandir('.\data'):       
-#     # account = Account(entry)
-#     # df = account._df     
-#     # print(df.tail())
+account = gui._accounts[0]
 
-#     df = account._import_from_csv(entry)
+for entry in os.scandir('.\data'):  
+    account._load_transactions_from_csv(entry.path)
 
-#     for index, value in df.iterrows():
-#         print(index)
-#         print(value)
-
-#         account._load_transactions_from_csv()
+print(account._transaction_df)
