@@ -2,10 +2,9 @@ import pandas as pd
 
 class Account(object):
 
-    def __init__(self, csv_path) -> None:
-        self._path = csv_path
-        self._df = self._import_from_csv()
+    def __init__(self, account_holder, account_name, account_type) -> None:
+        self._account_holder = account_holder
+        self._account_name = account_name
+        self._account_type = account_type
+        self._provider = self._determine_provider()
         pass
-
-    def _import_from_csv(self) -> pd.DataFrame():
-        return pd.read_csv(self._path)
