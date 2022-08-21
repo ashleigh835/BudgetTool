@@ -23,6 +23,8 @@ class Account(object):
         else: self._account_provider = account_provider
 
         self._config = self._create_config()
+
+        self._transaction_df = pd.DataFrame()
         pass
 
     def _create_config(self) -> dict:
@@ -35,10 +37,12 @@ class Account(object):
         }
 
     def _determine_account_type(self, account_type=None) -> str :        
-        if account_type is None: account_type = input('Account Type C/S/I (Checking/Savings/Investment): ')
-        while account_type.upper() not in ['C','S','I']:
-            print('please enter one of the following: C/S/I (Checking/Savings/Investment).')
-            account_type = input('C/S/I: ')
+        options_short = "/".join(self._account_type_map.keys())
+        options_full = "/".join(self._account_type_map.values())
+        if account_type is None: account_type = input(f'Account Type {options_short} ({options_full}): ')
+        while account_type.upper() not in self._account_type_map.keys():
+            print(f'please enter one of the following: {options_short} ({options_full}).')
+            account_type = input(f'{options_short}: ')
         return self._account_type_map[account_type.upper()]
 
     def _determine_provider(self, _account_provider=None) -> str:
@@ -60,16 +64,17 @@ class Account(object):
         
         return _class
     
-    def _load_transactions_from_csv(self, transaction_detail) -> pd.DataFrame():
-        class_type = self._determine_transaction_style()
-        t = class_type(transaction_detail)
-        return t
-        # 
-
-    # def _store_transactions(self, transaction_detail) -> dict:
-    #     t = T(**transaction_detail)
-    #     return {}
+    def _load_transactions_from_csv(self, path) -> pd.DataFrame():
+        self._transaction_class_type = self._determine_transaction_style()
+        df = self._import_from_csv(path) 
+        for index, transaction_detail in df.tail(3).iterrows():
+            transaction = self._transaction_class_type(transaction_detail.to_dict())
+            self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
     
-    # def _import_from_csv(self, path) -> pd.DataFrame():
-    #     # return pd.read_csv(self._path, index_col=False)
-    #     return pd.read_csv(path, index_col=False)
+    def _load_individual_transaction(self, transaction_detail):
+        self._transaction_class_type = self._determine_transaction_style()
+        transaction = self._transaction_class_type(transaction_detail)
+        self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+    
+    def _import_from_csv(self, path) -> pd.DataFrame():
+        return pd.read_csv(path, index_col=False)
