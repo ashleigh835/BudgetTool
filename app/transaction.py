@@ -4,13 +4,15 @@ import pandas as pd
 class Transaction(object):
     _supported_providers = []
 
-    def __init__(self, t_amount, t_type, t_date, t_description, t_payment_type, t_balance, **kwargs) -> None:
+    def __init__(self, t_amount, t_type, t_date, t_description, t_payment_type, t_balance, t_scheduled=False, t_forecasted=False, **kwargs) -> None:
         self._amount = t_amount
         self._type = t_type
         self._date = t_date
         self._description = t_description
         self._payment_type = t_payment_type
         self._balance = t_balance
+        self._scheduled = t_scheduled
+        self._forecasted = t_forecasted
 
         self._df_entry =  self._create_df_entry()
         pass
@@ -35,7 +37,9 @@ class Transaction(object):
             'date' : self._date,
             'description' : self._description,
             'payment_type' : self._payment_type,
-            'balance' : self._balance
+            'balance' : self._balance,
+            'scheduled' : self._scheduled,
+            'forecasted' : self._forecasted
         }, index=[0])
 
 class Trasaction_Type_1(Transaction):
