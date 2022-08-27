@@ -1,4 +1,4 @@
-from helpers.input_helpers import determine_from_ls, determine_amount
+from helpers.input_helpers import determine_from_ls, determine_amount, determine_weekday, determine_day_of_month
 
 class Scheduled_Transaction(object):
 
@@ -44,9 +44,9 @@ class Scheduled_Transaction(object):
         if self._frequency == 'one-off':
             print('when tho: DATE')
         elif self._frequency == 'weekly':            
-            print('when tho: DAY OF WEEK')
+            self._frequency_timing = determine_weekday()
         elif self._frequency == 'monthly':           
-            print('when tho: DAY OF MONTH')
+            self._frequency_timing = determine_day_of_month(['End'])
         elif self._frequency == 'quarterly':        
             print('when tho: DAY OF QUARTER')
         elif self._frequency == 'yearly':
