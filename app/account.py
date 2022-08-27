@@ -1,25 +1,25 @@
 from app.transaction import Transaction
+from app.scheduled_transaction import Scheduled_Transaction
 
-from common.mapping import Mapping
+from helpers.input_helpers import input_yn, determine_from_ls
 
-from helpers.class_integrators import parse_supported_providers
-from helpers.input_helpers import input_yn
+from common.config_info import Config
 
 import pandas as pd
 
 class Account(object):
 
     def __init__(self, account_holder, account_name, account_type=None, account_provider=None) -> None:
-        self._type_map = Mapping()._account_type
+        self.settings = Config().settings()
 
         self._holder = account_holder
         self._name = account_name
 
-        if account_type is None: 
+        if not account_type: 
             self._type = self._determine_account_type(account_type)
         else: self._type = account_type
 
-        if account_provider is None: 
+        if not account_provider: 
             self._provider = self._determine_provider(account_provider)
         else: self._provider = account_provider
 
@@ -37,23 +37,11 @@ class Account(object):
             }]
         }
 
-    def _determine_account_type(self, account_type=None) -> str :
-        options_short = "/".join(self._type_map.keys())
-        options_full = "/".join(self._type_map.values())
-        if account_type is None: account_type = input(f'Account Type {options_short} ({options_full}): ')
-        while account_type.upper() not in self._type_map.keys():
-            print(f'please enter one of the following: {options_short} ({options_full}).')
-            account_type = input(f'{options_short}: ')
-        return self._type_map[account_type.upper()]
+    def _determine_account_type(self) -> str :
+        return determine_from_ls(self.settings['account_types'], string='a provider')
 
-    def _determine_provider(self, _account_provider=None) -> str:
-        supported_providers_dict = parse_supported_providers(Transaction)
-        print('Choose a provider. Use the number listed below to choose your option')
-        for indx in supported_providers_dict.keys(): print(f'{indx}: {supported_providers_dict[indx]}')
-        provider_choose_input = input('please enter an index from above: ')
-        while provider_choose_input.lower() not in [str(indx) for indx in supported_providers_dict.keys()]:
-            provider_choose_input = input(f'please enter an index from above: ')        
-        return supported_providers_dict[int(provider_choose_input)]
+    def _determine_provider(self) -> str:
+        return determine_from_ls(Transaction._supported_providers, 'a provider')
 
     def _determine_transaction_style(self) -> None:
         _class = None
@@ -77,6 +65,12 @@ class Account(object):
         transaction = self._transaction_class_type(transaction_detail)
         self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
     
+    def _add_scheduled_transaction(self):
+        return 
+
+    def _get_scheduled_transaction_from_user(self):     
+        return Scheduled_Transaction()
+
     def _import_from_csv(self, path) -> pd.DataFrame():
         return pd.read_csv(path, index_col=False)
 
