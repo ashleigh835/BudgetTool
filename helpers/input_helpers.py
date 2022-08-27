@@ -1,4 +1,5 @@
 from helpers.date_helpers import weekdays
+from datetime import datetime
 
 def enum_ls(ls:list) -> list:
     return dict((i,j) for i,j in enumerate(ls))  
@@ -69,3 +70,22 @@ def determine_weekday() -> int:
 
 def determine_day_of_month(additional_options:list = []) -> str:
     return determine_from_range(1,31,additional_options)
+
+def determine_date() -> datetime.date:
+    print('please input a date in the format of YYYY-MM-DD')
+    good_date = False
+    e_enthusiasm = ''
+    e_counter = 0
+    while not good_date:
+        date_input = input('YYYY-MM-DD: ')
+        try:
+            dte = datetime.strptime(date_input,'%Y-%m-%d')
+            good_date = True
+        except ValueError:
+            e_counter+=1
+            if e_counter>4:
+                print("We both know that that's not a date now don't we... try again"+e_enthusiasm)
+                e_enthusiasm = e_enthusiasm + '!'
+        except Exception as e:
+            print(f'No idea what went wrong there.\n {type(e)}: {e}')
+    return dte.date()

@@ -8,6 +8,8 @@ from common.config_info import Config
 import pandas as pd
 
 class Account(object):
+    _type = None
+    _provider = None
 
     def __init__(self, account_holder, account_name, account_type=None, account_provider=None) -> None:
         self.settings = Config().settings()
@@ -15,13 +17,8 @@ class Account(object):
         self._holder = account_holder
         self._name = account_name
 
-        if not account_type: 
-            self._type = self._determine_account_type(account_type)
-        else: self._type = account_type
-
-        if not account_provider: 
-            self._provider = self._determine_provider(account_provider)
-        else: self._provider = account_provider
+        if not account_type: self._type = self._determine_account_type(account_type)
+        if not account_provider: self._provider = self._determine_provider(account_provider)
 
         self._config = self._create_config()
 
