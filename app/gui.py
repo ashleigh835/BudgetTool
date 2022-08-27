@@ -6,8 +6,6 @@ import json
 import os
 
 class GUI(object):
-    _accounts = []
-
     def __init__(self) -> None:
         self.settings = Config().settings()
         self._account_config_path = self.settings['account_config']
