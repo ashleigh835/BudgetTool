@@ -14,6 +14,8 @@ class Transaction(object):
         self._forecasted = t_forecasted
 
         self._df_entry =  self._create_df_entry()
+        self._df_entry['date'] = self._df_entry.date.astype('datetime64')
+        self._df_entry['balance'] = pd.to_numeric(self._df_entry.balance, errors='coerce')
         pass
 
     def __init_subclass__(cls) -> None:

@@ -2,6 +2,8 @@ from common.config_info import Config
 
 from app.account import Account_Manager
 
+from helpers.input_helpers import determine_from_ls
+
 import json
 import os
 
@@ -13,6 +15,8 @@ class GUI(object):
         print(self._account_config)
 
         self._Account_Manager = self._load_accounts()
+
+        self._load_options()
 
         if self._check_save(): self._save()
         pass
@@ -64,6 +68,44 @@ class GUI(object):
     def _add_account(self) -> None:
         self._Account_Manager._add_account()
         self._rewrite_config(self._Account_Manager._config)
+
+    def _choose_account(self): # -> Account:
+        print()
+        account = determine_from_ls(self._Account_Manager._accounts, string='an account', labels=self._Account_Manager._account_nicknames)
+        return account
+
+    def _manage_account(self) -> None:
+        finished:bool = False
+        account = self._choose_account()
+
+        while not finished:
+            operations = {
+                # 'delete account' : self._add_account,
+                'add scheduled transactions' : account._add_scheduled_transaction,
+                'add transactions from a path' : account._load_transactions_from_csv,
+                'import all csvs in upload folder' : account._load_transactions_from_folder,
+                'Exit' : print
+            }
+            print()
+            choice_fn = determine_from_ls(operations.values(), labels=operations.keys())
+            if choice_fn == print:
+                finished = True
+            choice_fn()
+
+    def _load_options(self) -> None:
+        finished:bool = False
+        while not finished:
+            operations = {
+                'Add a new account' : self._add_account,
+                'Manage account' : self._manage_account,
+                'Exit' : print
+            }
+
+            print()
+            choice_fn = determine_from_ls(operations.values(), labels=operations.keys())
+            if choice_fn == print:
+                finished = True
+            choice_fn()
 
 
 

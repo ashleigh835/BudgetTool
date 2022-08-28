@@ -6,6 +6,7 @@ from helpers.input_helpers import input_yn, determine_from_ls, enum_ls
 from common.config_info import Config
 
 import pandas as pd
+import os
 
 class Account(object):
     def __init__(self, account_holder:str, account_name:str, account_type:str=None, account_provider:str=None, scheduled_transactions:list=[]) -> None:
@@ -71,7 +72,13 @@ class Account(object):
         
         return _class
     
-    def _load_transactions_from_csv(self, path:str) -> None:
+    def _load_transactions_from_csv(self, path:str=None) -> None:
+        if not path:
+            print('please input the path of the file (including extension)')
+            path = input('path: ')
+            if not os.path.isfile(path):
+                print('file not found.')
+                return
         self._transaction_class_type = self._determine_transaction_style()
         df = self._import_from_csv(path) 
         for index, transaction_detail in df.iterrows():
@@ -82,6 +89,20 @@ class Account(object):
         self._transaction_class_type = self._determine_transaction_style()
         transaction = self._transaction_class_type(transaction_detail)
         self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+
+    def _load_transactions_from_folder(self, path:str=None) -> None:
+        path = path or self.settings['upload_folder']
+        for entry in os.scandir(path):  
+            self._load_transactions_from_csv(entry.path)
+            # remove_from ?
+            # if remove_from: 
+                # self._remove_file(entry.path)
+
+    # def _remove_file(self, path) -> None
+    #     os.system(f'rm {path}')
+
+    # def _store_transactions_to_drive(self) -> None
+        # store with a dynamic name that can be linked back to the account - hash?
 
     def _add_scheduled_transaction(self) -> None:        
         self._scheduled_transactions += [self._get_scheduled_transaction_from_user()]
