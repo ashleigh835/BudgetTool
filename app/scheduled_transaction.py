@@ -1,21 +1,28 @@
 from helpers.input_helpers import determine_from_ls, determine_amount, determine_weekday, determine_day_of_month, determine_date, determine_from_range
 
 class Scheduled_Transaction(object):
+    _summary:str = None
+    _description:str = None
     _type:str = None
     _amount:float = None
     _frequency:str = None
     _frequency_timing:object = None
-    _summary:str = None
-    _description:str = None
 
-    def __init__(self, t_summary:str=None, t_type:str=None, t_amount:float=None, t_freq:str=None, t_freq_timing=None, t_desc:str=None) -> None:
-        if not t_summary: self._summary = self._determine_summary()
-        if not t_desc: self._description = self._determine_description()
-        if not t_type: self._type = self._determine_scheduled_transaction_type()
-        if not t_amount: self._amount = self._determine_amount()
-        if not t_freq: self._frequency = self._determine_frequency()
-        if not t_freq_timing: self._frequency_timing = self._determine_frequency_timing()
+    def __init__(self, _summary:str=None, _type:str=None, _amount:float=None, _frequency:str=None, _frequency_timing=None, _description:str=None, new:bool=False) -> None:
+        self._summary = _summary or self._determine_summary()
+        if new: 
+            self._description = _description or self._determine_description()
+        else:
+            self._description = _description
+        self._type = _type or self._determine_scheduled_transaction_type()
+        self._amount = _amount or self._determine_amount()
+        self._frequency = _frequency or self._determine_frequency()
+        self._frequency_timing = _frequency_timing or self._determine_frequency_timing()
         pass
+
+    @property
+    def _config(self):
+        return self.__dict__
 
     def _determine_summary(self):
         print('in as few words as possible, what is the nickname for this transaction?')
