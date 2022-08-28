@@ -1,59 +1,65 @@
 from app.transaction import Transaction
+from app.scheduled_transaction import Scheduled_Transaction
 
-from common.mapping import Mapping
+from helpers.input_helpers import input_yn, determine_from_ls, enum_ls
 
-from helpers.class_integrators import parse_supported_providers
-from helpers.input_helpers import input_yn
+from common.config_info import Config
 
 import pandas as pd
 
 class Account(object):
+    def __init__(self, account_holder:str, account_name:str, account_type:str=None, account_provider:str=None, scheduled_transactions:list=[]) -> None:
+        self._holder = None
+        self._name = None
+        self._type = None
+        self._provider = None
 
-    def __init__(self, account_holder, account_name, account_type=None, account_provider=None) -> None:
-        self._type_map = Mapping()._account_type
+        self._scheduled_transactions = []
+
+        self._transaction_df = pd.DataFrame()
+
+        self.settings = Config().settings()
 
         self._holder = account_holder
         self._name = account_name
+        self._type = account_type or self._determine_account_type()
+        self._provider = account_provider or self._determine_provider()
 
-        if account_type is None: 
-            self._type = self._determine_account_type(account_type)
-        else: self._type = account_type
-
-        if account_provider is None: 
-            self._provider = self._determine_provider(account_provider)
-        else: self._provider = account_provider
-
-        self._config = self._create_config()
-
-        self._transaction_df = pd.DataFrame()
+        if scheduled_transactions:
+            self._scheduled_transactions += self.get_scheduled_transactions_from_config(scheduled_transactions)
         pass
-
-    def _create_config(self) -> dict:
+    
+    @property
+    def _config(self):
         return {
             self._holder : [{
                 'account_name' : self._name ,
                 'account_type' : self._type,
-                'account_provider' : self._provider
+                'account_provider' : self._provider,
+                'scheduled_transactions' : self._scheduled_transaction_config
             }]
         }
 
-    def _determine_account_type(self, account_type=None) -> str :
-        options_short = "/".join(self._type_map.keys())
-        options_full = "/".join(self._type_map.values())
-        if account_type is None: account_type = input(f'Account Type {options_short} ({options_full}): ')
-        while account_type.upper() not in self._type_map.keys():
-            print(f'please enter one of the following: {options_short} ({options_full}).')
-            account_type = input(f'{options_short}: ')
-        return self._type_map[account_type.upper()]
+    @property
+    def _scheduled_transaction_config(self):
+        _config = []
+        for scheduled_transaction in self._scheduled_transactions:
+            _config += [scheduled_transaction._config]
+        return _config
 
-    def _determine_provider(self, _account_provider=None) -> str:
-        supported_providers_dict = parse_supported_providers(Transaction)
-        print('Choose a provider. Use the number listed below to choose your option')
-        for indx in supported_providers_dict.keys(): print(f'{indx}: {supported_providers_dict[indx]}')
-        provider_choose_input = input('please enter an index from above: ')
-        while provider_choose_input.lower() not in [str(indx) for indx in supported_providers_dict.keys()]:
-            provider_choose_input = input(f'please enter an index from above: ')        
-        return supported_providers_dict[int(provider_choose_input)]
+    def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
+        scheduled_transactions = []
+        _config = _config or self._scheduled_transaction_config
+        for scheduled_transaction in _config:
+            temp_scheduled_transactions = Scheduled_Transaction(**scheduled_transaction)
+            scheduled_transactions += [temp_scheduled_transactions]
+        return scheduled_transactions
+
+    def _determine_account_type(self) -> str :
+        return determine_from_ls(self.settings['account_types'], string='a provider')
+
+    def _determine_provider(self) -> str:
+        return determine_from_ls(Transaction._supported_providers, 'a provider')
 
     def _determine_transaction_style(self) -> None:
         _class = None
@@ -65,73 +71,86 @@ class Account(object):
         
         return _class
     
-    def _load_transactions_from_csv(self, path) -> pd.DataFrame():
+    def _load_transactions_from_csv(self, path:str) -> None:
         self._transaction_class_type = self._determine_transaction_style()
         df = self._import_from_csv(path) 
         for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
     
-    def _load_individual_transaction(self, transaction_detail):
+    def _load_individual_transaction(self, transaction_detail:dict) -> None:
         self._transaction_class_type = self._determine_transaction_style()
         transaction = self._transaction_class_type(transaction_detail)
         self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+
+    def _add_scheduled_transaction(self) -> None:        
+        self._scheduled_transactions += [self._get_scheduled_transaction_from_user()]
     
-    def _import_from_csv(self, path) -> pd.DataFrame():
+    def _create_scheduled_transaction(self, t_summary:str=None, t_type:str=None, t_amount:float=None, t_freq:str=None, t_freq_timing=None, t_desc:str=None, new:bool=True) -> Scheduled_Transaction:
+        return Scheduled_Transaction(t_summary, t_type, t_amount, t_freq, t_freq_timing, t_desc, new)
+
+    def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
+        return self._create_scheduled_transaction(new=True)
+
+    def _import_from_csv(self, path:str) -> pd.DataFrame():
         return pd.read_csv(path, index_col=False)
 
 class Account_Manager(object):
+    _accounts=[]
 
-    def __init__(self, account_config={}) -> None:
+    def __init__(self, _config={}) -> None:
 
-        if account_config == {}:
+        if not _config:
             print('no config found, initializing setup...')
-            account_config = self._create_account_dict()
+            account = self._create_account()
+            if not account: 
+                print('setup cancelled')
+                return
+            _config = account._config
 
-        self._account_config = account_config
-
-        self._user_dict = self._parse_users()
-        self._users = self._list_users()
-
-        self._account_dict = self._parse_accounts()
-        self._accounts = self._list_accounts()
-        self._account_nicknames = self._list_account_nicknames()
+        self._accounts += self.get_accounts_from_config(_config)
         pass
 
-    def _parse_users(self) -> list:
-        return dict((i,j) for i,j in enumerate(self._account_config.keys()))      
+    @property
+    def _config(self) -> dict:
+        _config = {}
+        for account in self._accounts:
+            if account._holder in _config.keys(): 
+                _config[account._holder] += account._config[account._holder]
+            else:
+                _config[account._holder] = account._config[account._holder]
+        return _config
 
-    def _list_users(self) -> list:
-        return [self._user_dict[user] for user in self._user_dict.keys()]   
-    
-    def _parse_accounts(self) -> list:
+    @property
+    def _user_dict(self) -> dict:
+        return enum_ls(set([account._holder for account in self._accounts]))   
+
+    @property
+    def _users(self) -> list:
+        return list(self._user_dict.values())
+
+    @property
+    def _account_nicknames(self) -> list:
+        return [account._name for account in self._accounts]
+
+    def get_accounts_from_config(self, _config:dict=None) -> list:
+        """Create account classes and load to a list. Loads from self._config unless a config is provided
+
+        Args:
+            _config (dict, optional): see account._config description. Defaults to None.
+
+        Returns:
+            list: list of Accounts (class objects)
+        """                
         accounts = []
-        for account_holder in self._users:
-            for account_config in self._account_config[account_holder]:
-                account = Account(account_holder, **account_config)
+        _config = _config or self._config
+        for _holder in _config.keys():
+            for account_config in _config[_holder]:
+                account = Account(_holder, **account_config)
                 accounts += [account]
-        return dict((i,j) for i,j in enumerate(accounts))
+        return accounts
 
-    def _list_accounts(self) -> list:
-        return [self._account_dict[account] for account in self._account_dict.keys()]
-
-    def _list_account_nicknames(self) -> list:
-        return [self._account_dict[account]._name for account in self._account_dict.keys()]
-
-    def _create_account_dict(self, confirm_user=False) -> dict:
-        print('Please provide information below')
-        account_name = self._determine_nickname()
-        if account_name == None:
-            return
-
-        account_holder = self._determine_user(confirm_user)
-        if account_holder == None:
-            return
-        
-        account = Account(account_holder, account_name)
-        return account._config
-
-    def _determine_nickname(self, confirm_nickname=False) -> None:
+    def _determine_nickname(self, confirm_nickname:bool=False) -> None:
         account_name = input('Account Nickname: ')
         if confirm_nickname:
             while account_name in self._account_nicknames:
@@ -140,7 +159,7 @@ class Account_Manager(object):
             if account_name.lower() == 'c': return 
         return account_name
 
-    def _determine_user(self, confirm_user=False) -> None:
+    def _determine_user(self, confirm_user:bool=False) -> None:
         account_holder = input('Account Holder: ')
         if confirm_user:
             if account_holder not in self._users:
@@ -148,7 +167,7 @@ class Account_Manager(object):
                 if input_yn() == 'N': account_holder = self._determine_existing_user()
         return account_holder
 
-    def _determine_existing_user(self, account_holder=None) -> None:
+    def _determine_existing_user(self) -> None:
         print('Which account holder did you mean? Use the number listed below to choose your option')
         for indx in self._user_dict.keys(): print(f'{indx}: {self._user_dict[indx]}')
         print('C: Cancel')
@@ -157,16 +176,15 @@ class Account_Manager(object):
             account_user_choose_input = input(f'please enter an index from above or C to cancel: ')        
         if account_user_choose_input.lower() !='c': return self._user_dict[int(account_user_choose_input)]
 
-    def _add_account(self) -> None:
-        config = self._create_account_dict(confirm_user=True)
-        self._append_new_account_to_config(config)
+    def _add_account(self) -> None:        
+        self._accounts += [self._create_account(confirm_user=True)]
 
-    def _append_new_account_to_config(self, account) -> dict:
-        config = self._account_config
-        for account_holder in account.keys():
-            if account_holder in config: 
-                config[account_holder] += account[account_holder]
-            else:
-                config[account_holder] = account[account_holder]
-        self._account_config = config
-        return self._account_config
+    def _create_account(self, confirm_user=False) -> Account:
+        print('Please provide information below')
+        account_name = self._determine_nickname()
+        if not account_name: return
+
+        account_holder = self._determine_user(confirm_user)
+        if not account_holder: return
+        
+        return Account(account_holder, account_name)

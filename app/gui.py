@@ -6,8 +6,6 @@ import json
 import os
 
 class GUI(object):
-    _accounts = []
-
     def __init__(self) -> None:
         self.settings = Config().settings()
         self._account_config_path = self.settings['account_config']
@@ -16,8 +14,7 @@ class GUI(object):
 
         self._Account_Manager = self._load_accounts()
 
-        if self._account_config != self._Account_Manager._account_config:
-            self._rewrite_config(self._Account_Manager._account_config)
+        if self._check_save(): self._save()
         pass
 
         # Need an async function to ensure the account_config file always matches account_config
@@ -28,6 +25,18 @@ class GUI(object):
 
     def __reset__(self) -> None:
         self.__init__()
+    
+    def _check_save(self) -> bool:
+        if self._account_config != self._Account_Manager._config:
+            print('**'*20)
+            print(self._account_config)
+            print('--'*20)
+            print(self._Account_Manager._config)
+            print('**'*20)
+            return True
+
+    def _save(self) -> None:
+        self._rewrite_config(self._Account_Manager._config)
 
     def _determine_config(self) -> dict:
         if os.path.isfile(self._account_config_path):
@@ -35,7 +44,7 @@ class GUI(object):
         else:
             return {}
 
-    def _create_config(self, config) -> dict:
+    def _create_config(self, config:dict) -> dict:
         json_obj = json.dumps(config, indent=4)
         with open(self._account_config_path,"w") as of:
             of.write(json_obj)
@@ -46,16 +55,15 @@ class GUI(object):
             json_obj = json.load(of)
         return json_obj
 
-    def _rewrite_config(self, config) -> dict:
+    def _rewrite_config(self, config:dict) -> None:
         self._create_config(config)
-        self.__reset__()
     
-    def _load_accounts(self):
+    def _load_accounts(self) -> Account_Manager:
         return Account_Manager(self._account_config)
 
-    def _add_account(self):
+    def _add_account(self) -> None:
         self._Account_Manager._add_account()
-        self._rewrite_config(self._Account_Manager._account_config)
+        self._rewrite_config(self._Account_Manager._config)
 
 
 
