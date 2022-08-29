@@ -2,7 +2,7 @@ from common.config_info import Config
 
 from app.account import Account_Manager
 
-from helpers.input_helpers import determine_from_ls
+from helpers.input_helpers import determine_from_ls, view_readable, determine_operation_from_dict
 
 import json
 import os
@@ -12,7 +12,9 @@ class GUI(object):
         self.settings = Config().settings()
         self._account_config_path = self.settings['account_config']
         self._account_config = self._determine_config()
+        print('**'*20)
         print(self._account_config)
+        print('**'*20)
 
         self._Account_Manager = self._load_accounts()
 
@@ -31,12 +33,12 @@ class GUI(object):
         self.__init__()
     
     def _check_save(self) -> bool:
-        if self._account_config != self._Account_Manager._config:
-            print('**'*20)
+        if self._account_config != self._Account_Manager._config: 
+            print('***'*20)
             print(self._account_config)
-            print('--'*20)
+            print('---'*20)
             print(self._Account_Manager._config)
-            print('**'*20)
+            print('***'*20)
             return True
 
     def _save(self) -> None:
@@ -75,37 +77,31 @@ class GUI(object):
         return account
 
     def _manage_account(self) -> None:
-        finished:bool = False
         account = self._choose_account()
-
-        while not finished:
-            operations = {
-                # 'delete account' : self._add_account,
-                'add scheduled transactions' : account._add_scheduled_transaction,
-                'add transactions from a path' : account._load_transactions_from_csv,
-                'import all csvs in upload folder' : account._load_transactions_from_folder,
-                'Exit' : print
-            }
-            print()
-            choice_fn = determine_from_ls(operations.values(), labels=operations.keys())
-            if choice_fn == print:
-                finished = True
-            choice_fn()
-
+        operations = {
+            # 'delete account' : self._add_account,
+            'view all account details' : {'function' : view_readable, 'vars' : {'read_item' : account._config[account._holder][0]}},
+            'view scheduled transactions' : {
+                'function' : view_readable, 
+                'vars' : {
+                    'name':'scheduled_transactions', 
+                    'read_item':account._config[account._holder][0]['scheduled_transactions']
+                }
+            },
+            'add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
+            'add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
+            'import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
+            'Exit' : {'function' : 'Exit',}
+        }
+        determine_operation_from_dict(operations)
+                    
     def _load_options(self) -> None:
-        finished:bool = False
-        while not finished:
-            operations = {
-                'Add a new account' : self._add_account,
-                'Manage account' : self._manage_account,
-                'Exit' : print
-            }
-
-            print()
-            choice_fn = determine_from_ls(operations.values(), labels=operations.keys())
-            if choice_fn == print:
-                finished = True
-            choice_fn()
+        operations = {
+            'Add a new account' : {'function' : self._add_account,'vars' : None},
+            'Manage account' : {'function' : self._manage_account,'vars' : None},
+            'Exit' : {'function' : 'Exit'}
+        }
+        determine_operation_from_dict(operations)
 
 
 

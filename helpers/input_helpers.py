@@ -89,3 +89,39 @@ def determine_date() -> datetime.date:
         except Exception as e:
             print(f'No idea what went wrong there.\n {type(e)}: {e}')
     return dte.date()
+
+def determine_operation_from_dict(operations:dict) -> None:  
+    finished:bool = False
+
+    while not finished:
+        print()
+        choice = determine_from_ls(operations.values(), labels=operations.keys())
+
+        if choice['function'] == 'Exit':
+            finished = True
+        else:
+            fn = choice['function']
+            if not choice['vars']: 
+                fn()
+            else: 
+                fn(**choice['vars'])
+
+def parse_readable(name, val) -> list:
+    print_ls = []
+    if type(val) == str:
+        print_ls += [f'{name} : {val}']
+    elif type(val) == list:      
+        print_ls += ['', name+':']
+        for l in val:
+            print_ls += ['-'*20]      
+            print_ls += parse_readable(name, l)
+    elif type(val) == dict:
+        for l in val.keys():
+            print_ls += parse_readable(l, val[l])
+    return print_ls
+
+def view_readable(read_item, name:str='') -> None:
+    print_ls = ['','-'*40]
+    print_ls += parse_readable(name, read_item)
+    print_ls += ['-'*40]
+    for p in print_ls: print(p)
