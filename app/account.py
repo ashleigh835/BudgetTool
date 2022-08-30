@@ -17,10 +17,8 @@ class Account(object):
 
         self._scheduled_transactions = []
 
-        self._transaction_df = pd.DataFrame()
-
         self.settings = Config().settings()
-
+        
         self._holder = account_holder
         self._name = account_name
         self._type = account_type or self._determine_account_type()
@@ -28,6 +26,8 @@ class Account(object):
 
         if scheduled_transactions:
             self._scheduled_transactions += self.get_scheduled_transactions_from_config(scheduled_transactions)
+
+        self._transaction_df = self._load_transactions_from_drive()
         pass
     
     @property
@@ -42,11 +42,15 @@ class Account(object):
         }
 
     @property
-    def _scheduled_transaction_config(self):
+    def _scheduled_transaction_config(self) -> list:
         _config = []
         for scheduled_transaction in self._scheduled_transactions:
             _config += [scheduled_transaction._config]
         return _config
+    
+    @property
+    def _transaction_hdf(self) -> str:
+        return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
     def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
         scheduled_transactions = []
@@ -72,7 +76,7 @@ class Account(object):
         
         return _class
     
-    def _load_transactions_from_csv(self, path:str=None) -> None:
+    def _load_transactions_from_csv(self, path:str=None, write:bool=True) -> None:
         if not path:
             print('please input the path of the file (including extension)')
             path = input('path: ')
@@ -84,25 +88,40 @@ class Account(object):
         for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+        if write: self._store_transactions_to_drive()
     
-    def _load_individual_transaction(self, transaction_detail:dict) -> None:
+    def _load_individual_transaction(self, transaction_detail:dict, write:bool=True) -> None:
         self._transaction_class_type = self._determine_transaction_style()
         transaction = self._transaction_class_type(transaction_detail)
         self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+        if write: self._store_transactions_to_drive()
 
-    def _load_transactions_from_folder(self, path:str=None) -> None:
+    def _load_transactions_from_folder(self, path:str=None, write:bool=True) -> None:
         path = path or self.settings['upload_folder']
+        archive = self.settings['upload_archive'] + os.sep
         for entry in os.scandir(path):  
-            self._load_transactions_from_csv(entry.path)
-            # remove_from ?
-            # if remove_from: 
-                # self._remove_file(entry.path)
+            self._load_transactions_from_csv(entry.path, write=False)
+            os.system(f'move {entry.path} {archive}{os.path.basename(entry.path)}')
+        if write: self._store_transactions_to_drive()
 
-    # def _remove_file(self, path) -> None
-    #     os.system(f'rm {path}')
+    def _load_transactions_from_drive(self) -> pd.DataFrame():
+        if os.path.isfile(self._transaction_hdf):
+            return pd.read_hdf(self._transaction_hdf, key='transactions', mode='r')
+        else:
+            return pd.DataFrame()
 
-    # def _store_transactions_to_drive(self) -> None
-        # store with a dynamic name that can be linked back to the account - hash?
+    def _store_transactions_to_drive(self) -> None:
+        if not self._transaction_df.empty:
+            self._transaction_df.to_hdf(self._transaction_hdf, key='transactions', mode='w', complevel=4, complib='zlib', encoding='UTF-8')
+
+    def _get_most_recent_transaction_date(self) -> dict:
+        if not self._transaction_df.empty:
+            return self._transaction_df.date.max().date()
+        else:
+            return 'no transactions'
+
+    def _view_most_recent_transaction_date(self) -> dict:
+        print(self._get_most_recent_transaction_date())
 
     def _add_scheduled_transaction(self) -> None:        
         self._scheduled_transactions += [self._get_scheduled_transaction_from_user()]
@@ -129,7 +148,7 @@ class Account_Manager(object):
                 return
             _config = account._config
 
-        self._accounts += self.get_accounts_from_config(_config)
+        self._accounts += self._get_accounts_from_config(_config)
         pass
 
     @property
@@ -154,7 +173,7 @@ class Account_Manager(object):
     def _account_nicknames(self) -> list:
         return [account._name for account in self._accounts]
 
-    def get_accounts_from_config(self, _config:dict=None) -> list:
+    def _get_accounts_from_config(self, _config:dict=None) -> list:
         """Create account classes and load to a list. Loads from self._config unless a config is provided
 
         Args:
@@ -197,8 +216,29 @@ class Account_Manager(object):
             account_user_choose_input = input(f'please enter an index from above or C to cancel: ')        
         if account_user_choose_input.lower() !='c': return self._user_dict[int(account_user_choose_input)]
 
+    def _store_all_transactions(self) -> None:
+        for account in self._accounts:
+            account._store_transactions_to_drive()
+
     def _add_account(self) -> None:        
         self._accounts += [self._create_account(confirm_user=True)]
+
+    def _delete_account(self, account:Account=None) -> None:
+        if not account:
+            account = self._choose_account()
+        if account in self._accounts:
+            account_name = account._name
+            account_holder = account._holder
+            print(f'Are you sure you want to delete account {account._name} (holder:{account_holder})')
+            sure = input_yn()
+            if sure == 'Y': 
+                self._accounts.remove(account)
+                print(f'account: {account_name} removed.')
+
+    def _choose_account(self) -> Account:
+        print()
+        account = determine_from_ls(self._accounts, string='an account', labels=self._account_nicknames)
+        return account
 
     def _create_account(self, confirm_user=False) -> Account:
         print('Please provide information below')
@@ -209,3 +249,16 @@ class Account_Manager(object):
         if not account_holder: return
         
         return Account(account_holder, account_name)
+    
+    def _ammend_account(self, account:Account) -> None:
+        if not account:
+            account = self._choose_account()
+        var = determine_from_ls(['account_holder', 'account_name', 'account_type', 'account_provider'])
+        if var == 'account_holder':
+            account._holder = self._determine_user(True)
+        elif var == 'account_name':
+            account._name = self._determine_nickname(True)
+        elif var == 'account_type':
+            account._type = account._determine_account_type()
+        elif var == 'account_provider':
+            account._provider = account._determine_provider()
