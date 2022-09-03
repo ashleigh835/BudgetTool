@@ -59,13 +59,13 @@ class Account(object):
     def _most_recent_transaction(self) -> Transaction:
         if not self._transaction_df.empty:
             t = self._transaction_df[~self._transaction_df.balance.isna()]
-            if not t.empty: return Transaction(**t.sort_index().tail(1).iloc[0].to_dict())
+            if not t.empty: return Transaction(**t.tail(1).iloc[0].to_dict())
 
     @property
     def _most_recent_pending_transaction(self) -> Transaction:
         if not self._transaction_df.empty:
-            t = self._transaction_df[self._transaction_df.balance.isna()].sort_index()
-            if not t.empty: return Transaction(**t.sort_index().tail(1).iloc[0].to_dict())
+            t = self._transaction_df[self._transaction_df.balance.isna()]
+            if not t.empty: return Transaction(**t.tail(1).iloc[0].to_dict())
 
     def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
         scheduled_transactions = []
@@ -125,7 +125,9 @@ class Account(object):
         df.drop_duplicates(inplace=True)
         # remove historical pending transactions
         df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
-        df.reset_index(inplace=True, drop=True)
+        
+        df.reset_index(drop=False, inplace=True)
+        df = df.sort_values(by=['date','index']).drop(columns='index').reset_index(drop=True)
         self._transaction_df = df
 
     def _load_transactions_from_drive(self) -> pd.DataFrame():
@@ -153,12 +155,10 @@ class Account(object):
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
 
-    def _project_transactions(self, days=30) -> pd.DataFrame():
+    def _project_transactions(self, days:int=30) -> pd.DataFrame():
         _start_date = self._get_most_recent_transaction_date()
-        _date_range = [_start_date + timedelta(days=day) for day in range(0,days)]
-
-        # df = pd.DataFrame()
         df = self._transaction_df[self._transaction_df.date.dt.date >= _start_date + timedelta(days=-5)].copy()
+        print(df)
 
         for st in self._scheduled_transactions:            
             for rule in st._config['_frequency'].keys():
@@ -176,7 +176,8 @@ class Account(object):
                         }
                         t = Transaction(**t_detail)
                         df = pd.concat([df,t._df_entry], axis=0)
-                        
+                else:
+                    print(f'{rule} frequency not yet supported for projection')
                  
         # for day in range(0,days):
         #     _date = _start_date + timedelta(days=day)
@@ -184,8 +185,12 @@ class Account(object):
                 
         df.reset_index(drop=True,inplace=True)
         df.loc[df.balance.isna(), 'balance'] = df['balance'].ffill() + df['amount']
-
-        print(df)
+        
+        print(df)    
+        ax = df.groupby('date',as_index=False).agg({'balance':'last'}).plot(x = 'date',y = 'balance')  
+        fig = ax.get_figure()
+        fig.savefig('test2.pdf')
+        return df  
 
 class Account_Manager(object):
     _accounts=[]

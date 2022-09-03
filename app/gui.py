@@ -91,7 +91,7 @@ class GUI(object):
                 'Add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
                 'Import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
                 'Project Transactions' : {'function' : account._project_transactions, 'vars' : None},
-                'test' : {'print' : account._most_recent_transaction._balance, 'vars' : None},
+                # 'test' : {'print' : account._most_recent_transaction._balance, 'vars' : None},
                 'Exit' : {'exit' : ''}
             }
             reload_self = determine_operation_from_dict(operations, refresh_dict=True)
