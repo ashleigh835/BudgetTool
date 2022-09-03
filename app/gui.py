@@ -69,7 +69,10 @@ class GUI(object):
         self._rewrite_config(self._Account_Manager._config)
 
     def _manage_account(self) -> None:
+        """_summary_: Offer options to manage account.
+        """        
         account = self._Account_Manager._choose_account()
+        # Loop from outside of the function so that any changes to self will be reloaded into the operations dict and pass through to the determine function
         reload_self = True
         while reload_self:
             operations = {
@@ -83,7 +86,7 @@ class GUI(object):
                         'read_item':account._config[account._holder][0]['scheduled_transactions']
                     }
                 },
-                'View most recent transaction' : {'function' : account._view_most_recent_transaction_date, 'vars' : None},
+                'View date of most recent transaction' : {'function' : account._view_most_recent_transaction_date, 'vars' : None},
                 'Add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
                 'Add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
                 'Import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
@@ -92,6 +95,9 @@ class GUI(object):
             reload_self = determine_operation_from_dict(operations, refresh_dict=True)
                     
     def _load_options(self) -> None:
+        """_summary_ offer initial gui options
+        """        
+        # Loop from outside of the function so that any changes to self will be reloaded into the operations dict and pass through to the determine function
         reload_self = True
         while reload_self:
             operations = {

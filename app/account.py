@@ -5,6 +5,7 @@ from helpers.input_helpers import input_yn, determine_from_ls, enum_ls
 
 from common.config_info import Config
 
+from datetime import datetime
 import pandas as pd
 import os
 
@@ -88,6 +89,7 @@ class Account(object):
         for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+            self._clean_transactions()
         if write: self._store_transactions_to_drive()
     
     def _load_individual_transaction(self, transaction_detail:dict, write:bool=True) -> None:
@@ -103,6 +105,13 @@ class Account(object):
             self._load_transactions_from_csv(entry.path, write=False)
             os.system(f'move {entry.path} {archive}{os.path.basename(entry.path)}')
         if write: self._store_transactions_to_drive()
+
+    def _clean_transactions(self) -> None:
+        df = self._transaction_df
+        df.drop_duplicates(inplace=True)
+        # remove historical pending transactions
+        df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
+        self._transaction_df = df
 
     def _load_transactions_from_drive(self) -> pd.DataFrame():
         if os.path.isfile(self._transaction_hdf):
@@ -240,7 +249,7 @@ class Account_Manager(object):
         account = determine_from_ls(self._accounts, string='an account', labels=self._account_nicknames)
         return account
 
-    def _create_account(self, confirm_user=False) -> Account:
+    def _create_account(self, confirm_user:bool=False) -> Account:
         print('Please provide information below')
         account_name = self._determine_nickname()
         if not account_name: return
