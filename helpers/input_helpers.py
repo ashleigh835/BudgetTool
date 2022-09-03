@@ -90,7 +90,7 @@ def determine_date() -> datetime.date:
             print(f'No idea what went wrong there.\n {type(e)}: {e}')
     return dte.date()
 
-def determine_operation_from_dict(operations:dict) -> None:  
+def determine_operation_from_dict(operations:dict, refresh_dict:bool=False) -> bool:  
     finished:bool = False
 
     while not finished:
@@ -106,22 +106,28 @@ def determine_operation_from_dict(operations:dict) -> None:
             else: 
                 fn(**choice['vars'])
 
-def parse_readable(name, val) -> list:
+        if (refresh_dict) & (not finished):
+            return True
+
+    return False
+
+def parse_readable(name:str, val, comment_width:int, level:int=1) -> list:
     print_ls = []
     if type(val) == str:
         print_ls += [f'{name} : {val}']
-    elif type(val) == list:      
-        print_ls += ['', name+':']
+    elif type(val) == list:   
+        if level<=2: print_ls += ['', name+':']
         for l in val:
-            print_ls += ['-'*20]      
-            print_ls += parse_readable(name, l)
+            if level<=2: print_ls += ['-'*int(comment_width/((level)))]      
+            print_ls += parse_readable(name, l, comment_width, level+1)
     elif type(val) == dict:
         for l in val.keys():
-            print_ls += parse_readable(l, val[l])
+            print_ls += parse_readable(l, val[l], comment_width, level+1)
     return print_ls
 
-def view_readable(read_item, name:str='') -> None:
-    print_ls = ['','-'*40]
-    print_ls += parse_readable(name, read_item)
-    print_ls += ['-'*40]
+def view_readable(read_item, name:str='', comment_width:int=40) -> None:
+
+    print_ls = ['','-'*comment_width]
+    print_ls += parse_readable(name, read_item, comment_width)
+    print_ls += ['-'*comment_width]
     for p in print_ls: print(p)

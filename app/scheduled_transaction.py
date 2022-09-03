@@ -1,14 +1,14 @@
-from helpers.input_helpers import determine_from_ls, determine_amount, determine_weekday, determine_day_of_month, determine_date, determine_from_range
+from helpers.input_helpers import determine_from_ls, determine_amount, determine_weekday, determine_day_of_month, determine_date, determine_from_range, input_yn
 
 class Scheduled_Transaction(object):
-    _summary:str = None
-    _description:str = None
-    _type:str = None
-    _amount:float = None
-    _frequency:str = None
-    _frequency_timing:object = None
 
-    def __init__(self, _summary:str=None, _type:str=None, _amount:float=None, _frequency:str=None, _frequency_timing=None, _description:str=None, new:bool=False) -> None:
+    def __init__(self, _summary:str=None, _type:str=None, _amount:float=None, _frequency:dict={}, _description:str=None, new:bool=False) -> None:
+        self._summary:str = None
+        self._description:str = None
+        self._type:str = None
+        self._amount:float = None
+        self._frequency:dict = {}
+
         self._summary = _summary or self._determine_summary()
         if new: 
             self._description = _description or self._determine_description()
@@ -17,7 +17,6 @@ class Scheduled_Transaction(object):
         self._type = _type or self._determine_scheduled_transaction_type()
         self._amount = _amount or self._determine_amount()
         self._frequency = _frequency or self._determine_frequency()
-        self._frequency_timing = _frequency_timing or self._determine_frequency_timing()
         pass
 
     @property
@@ -38,24 +37,39 @@ class Scheduled_Transaction(object):
     def _determine_amount(self):
         return determine_amount('payment amount')
     
-    def _determine_frequency(self):
-        return determine_from_ls(['one-off', 'daily','weekly','monthly','yearly','custom interval'])
+    def _determine_frequency(self) -> dict:
+        finished = False
+        while not finished:
+            _frequency = determine_from_ls(['one-off', 'daily','weekly','monthly','yearly','custom interval'])
+            _frequency, _frequency_timing = self._determine_frequency_timing(_frequency)
+            self._update_frequency(_frequency, _frequency_timing)
+            print('Add another frequency rule for this scheduled transaction?')
+            choose = input_yn()
+            if choose == 'N':
+                finished = True
+        return self._frequency
 
-    def _determine_frequency_timing(self):
-        if self._frequency == 'one-off':
-           return determine_date()
-        elif self._frequency == 'weekly':            
-            return determine_weekday()
-        elif self._frequency == 'monthly':           
-            return determine_day_of_month(['End'])
-        elif self._frequency == 'yearly':
-            return determine_date()
-        elif self._frequency == 'custom interval':
+    def _determine_frequency_timing(self, _frequency:str):
+        if _frequency == 'one-off':
+           return _frequency, determine_date()
+        elif _frequency == 'weekly':            
+            return _frequency, determine_weekday()
+        elif _frequency == 'monthly':           
+            return _frequency, determine_day_of_month(['End'])
+        elif _frequency == 'yearly':
+            return _frequency, determine_date()
+        elif _frequency == 'custom interval':
             recursion_str = 're-select frequency'
             ft = determine_from_range(1,365,[recursion_str],string='an interval (in days)')
             if ft == recursion_str: 
                 print('please re-select your frequency')
-                self._frequency = self._determine_frequency()
+                _frequency = self._determine_frequency()
                 return self._determine_frequency_timing()
             else:
-                return ft
+                return _frequency, ft
+    
+    def _update_frequency(self, _frequency:str, _frequency_timing:object) -> None:
+        if _frequency not in self._frequency.keys():        
+            self._frequency[_frequency] = [_frequency_timing]
+        else:
+            self._frequency[_frequency]+=[_frequency_timing]
