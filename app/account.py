@@ -2,19 +2,21 @@ from app.transaction import Transaction
 from app.scheduled_transaction import Scheduled_Transaction
 
 from helpers.input_helpers import input_yn, determine_from_ls, enum_ls
+from helpers.date_helpers import days_matching_within_range
 
 from common.config_info import Config
 
-from datetime import datetime
-import pandas as pd
+from datetime import datetime, timedelta
 import os
+import pandas as pd
+import numpy as np
 
 class Account(object):
     def __init__(self, account_holder:str, account_name:str, account_type:str=None, account_provider:str=None, scheduled_transactions:list=[]) -> None:
         self._holder = None
         self._name = None
-        self._type = None
-        self._provider = None
+        # self._type = None
+        # self._provider = None
 
         self._scheduled_transactions = []
 
@@ -53,6 +55,18 @@ class Account(object):
     def _transaction_hdf(self) -> str:
         return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
+    @property
+    def _most_recent_transaction(self) -> Transaction:
+        if not self._transaction_df.empty:
+            t = self._transaction_df[~self._transaction_df.balance.isna()]
+            if not t.empty: return Transaction(**t.sort_index().tail(1).iloc[0].to_dict())
+
+    @property
+    def _most_recent_pending_transaction(self) -> Transaction:
+        if not self._transaction_df.empty:
+            t = self._transaction_df[self._transaction_df.balance.isna()].sort_index()
+            if not t.empty: return Transaction(**t.sort_index().tail(1).iloc[0].to_dict())
+
     def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
         scheduled_transactions = []
         _config = _config or self._scheduled_transaction_config
@@ -85,11 +99,11 @@ class Account(object):
                 print('file not found.')
                 return
         self._transaction_class_type = self._determine_transaction_style()
-        df = self._import_from_csv(path) 
+        df = pd.read_csv(path, index_col=False)
         for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
-            self._clean_transactions()
+        self._clean_transactions()
         if write: self._store_transactions_to_drive()
     
     def _load_individual_transaction(self, transaction_detail:dict, write:bool=True) -> None:
@@ -111,6 +125,7 @@ class Account(object):
         df.drop_duplicates(inplace=True)
         # remove historical pending transactions
         df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
+        df.reset_index(inplace=True, drop=True)
         self._transaction_df = df
 
     def _load_transactions_from_drive(self) -> pd.DataFrame():
@@ -123,11 +138,8 @@ class Account(object):
         if not self._transaction_df.empty:
             self._transaction_df.to_hdf(self._transaction_hdf, key='transactions', mode='w', complevel=4, complib='zlib', encoding='UTF-8')
 
-    def _get_most_recent_transaction_date(self) -> dict:
-        if not self._transaction_df.empty:
-            return self._transaction_df.date.max().date()
-        else:
-            return 'no transactions'
+    def _get_most_recent_transaction_date(self) -> datetime.date:
+        return self._most_recent_transaction._date.date()
 
     def _view_most_recent_transaction_date(self) -> dict:
         print(self._get_most_recent_transaction_date())
@@ -141,8 +153,39 @@ class Account(object):
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
 
-    def _import_from_csv(self, path:str) -> pd.DataFrame():
-        return pd.read_csv(path, index_col=False)
+    def _project_transactions(self, days=30) -> pd.DataFrame():
+        _start_date = self._get_most_recent_transaction_date()
+        _date_range = [_start_date + timedelta(days=day) for day in range(0,days)]
+
+        # df = pd.DataFrame()
+        df = self._transaction_df[self._transaction_df.date.dt.date >= _start_date + timedelta(days=-5)].copy()
+
+        for st in self._scheduled_transactions:            
+            for rule in st._config['_frequency'].keys():
+                if rule == 'monthly':
+                    for date in days_matching_within_range(_start_date, days, st._config['_frequency']['monthly']):
+                        t_detail = {
+                            'type' : st._type ,
+                            'date' : date,
+                            'description' : st._summary ,
+                            'amount' : st._amount ,
+                            'payment_type' : '' ,
+                            'balance' : np.nan,
+                            'scheduled' : True,
+                            'forecasted' : True
+                        }
+                        t = Transaction(**t_detail)
+                        df = pd.concat([df,t._df_entry], axis=0)
+                        
+                 
+        # for day in range(0,days):
+        #     _date = _start_date + timedelta(days=day)
+        #     print(_date)
+                
+        df.reset_index(drop=True,inplace=True)
+        df.loc[df.balance.isna(), 'balance'] = df['balance'].ffill() + df['amount']
+
+        print(df)
 
 class Account_Manager(object):
     _accounts=[]

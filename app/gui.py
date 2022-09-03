@@ -69,7 +69,7 @@ class GUI(object):
         self._rewrite_config(self._Account_Manager._config)
 
     def _manage_account(self) -> None:
-        """_summary_: Offer options to manage account.
+        """_summary_ Offer options to manage account.
         """        
         account = self._Account_Manager._choose_account()
         # Loop from outside of the function so that any changes to self will be reloaded into the operations dict and pass through to the determine function
@@ -90,7 +90,9 @@ class GUI(object):
                 'Add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
                 'Add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
                 'Import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
-                'Exit' : {'function' : 'Exit'}
+                'Project Transactions' : {'function' : account._project_transactions, 'vars' : None},
+                'test' : {'print' : account._most_recent_transaction._balance, 'vars' : None},
+                'Exit' : {'exit' : ''}
             }
             reload_self = determine_operation_from_dict(operations, refresh_dict=True)
                     
@@ -104,7 +106,7 @@ class GUI(object):
                 'Add a new account' : {'function' : self._add_account,'vars' : None},
                 'Delete an existing account' : {'function' : self._Account_Manager._delete_account, 'vars' : None},
                 'Manage an existing account' : {'function' : self._manage_account,'vars' : None},
-                'Exit' : {'function' : 'Exit'}
+                'Exit' : {'exit' : ''}
             }
             reload_self = determine_operation_from_dict(operations)
 

@@ -97,14 +97,16 @@ def determine_operation_from_dict(operations:dict, refresh_dict:bool=False) -> b
         print()
         choice = determine_from_ls(operations.values(), labels=operations.keys())
 
-        if choice['function'] == 'Exit':
-            finished = True
-        else:
+        if 'print' in choice:
+            print(choice['print'])
+        elif 'function' in choice:
             fn = choice['function']
             if not choice['vars']: 
                 fn()
             else: 
                 fn(**choice['vars'])
+        elif 'exit' in choice:
+            finished = True
 
         if (refresh_dict) & (not finished):
             return True

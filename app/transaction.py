@@ -3,15 +3,15 @@ import pandas as pd
 class Transaction(object):
     _supported_providers = []
 
-    def __init__(self, t_amount, t_type, t_date, t_description, t_payment_type, t_balance, t_scheduled=False, t_forecasted=False, **kwargs) -> None:
-        self._amount = t_amount
-        self._type = t_type
-        self._date = t_date
-        self._description = t_description
-        self._payment_type = t_payment_type
-        self._balance = t_balance
-        self._scheduled = t_scheduled
-        self._forecasted = t_forecasted
+    def __init__(self, amount, type, date, description, payment_type, balance, scheduled=False, forecasted=False, **kwargs) -> None:
+        self._amount = amount
+        self._type = type
+        self._date = date
+        self._description = description
+        self._payment_type = payment_type
+        self._balance = balance
+        self._scheduled = scheduled
+        self._forecasted = forecasted
 
         self._df_entry =  self._create_df_entry()
         self._df_entry['date'] = self._df_entry.date.astype('datetime64')
@@ -46,12 +46,12 @@ class Transaction(object):
 class Trasaction_Type_1(Transaction):
     supported_providers = ['Chase']
     mapping = { 
-        't_type' : 'Details' ,
-        't_date' : 'Posting Date' ,
-        't_description' : 'Description' ,
-        't_amount' : 'Amount' ,
-        't_payment_type' : 'Type' ,
-        't_balance' : 'Balance' 
+        'type' : 'Details' ,
+        'date' : 'Posting Date' ,
+        'description' : 'Description' ,
+        'amount' : 'Amount' ,
+        'payment_type' : 'Type' ,
+        'balance' : 'Balance' 
     }
     conversion_dict = {}
 
@@ -61,12 +61,12 @@ class Trasaction_Type_1(Transaction):
 class Trasaction_Type_2(Transaction):
     supported_providers = ['Lloyds']
     mapping = { 
-        't_type' : 'Details' ,
-        't_date' : 'Posting Date' ,
-        't_description' : 'Description' ,
-        't_amount' : 'Amount' ,
-        't_payment_type' : 'Type' ,
-        't_balance' : 'Bal' 
+        'type' : 'Details' ,
+        'date' : 'Posting Date' ,
+        'description' : 'Description' ,
+        'amount' : 'Amount' ,
+        'payment_type' : 'Type' ,
+        'balance' : 'Bal' 
     }
     conversion_dict = {}
 
