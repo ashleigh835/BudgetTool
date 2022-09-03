@@ -2,7 +2,7 @@ from common.config_info import Config
 
 from app.account import Account_Manager
 
-from helpers.input_helpers import determine_from_ls, view_readable, determine_operation_from_dict
+from helpers.input_helpers import view_readable, determine_operation_from_dict
 
 import json
 import os
@@ -70,33 +70,37 @@ class GUI(object):
 
     def _manage_account(self) -> None:
         account = self._Account_Manager._choose_account()
-        operations = {
-            'Delete account' : {'function' : self._Account_Manager._delete_account, 'vars' : {'account' : account}},
-            # 'Ammend details' : {'function' : self._Account_Manager._ammend_account, 'vars' : {'account' : account}},
-            'View all account details' : {'function' : view_readable, 'vars' : {'read_item' : account._config[account._holder][0]}},
-            'View scheduled transactions' : {
-                'function' : view_readable, 
-                'vars' : {
-                    'name':'scheduled_transactions', 
-                    'read_item':account._config[account._holder][0]['scheduled_transactions']
-                }
-            },
-            'View most recent transaction' : {'function' : account._view_most_recent_transaction_date, 'vars' : None},
-            'Add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
-            'Add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
-            'Import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
-            'Exit' : {'function' : 'Exit',}
-        }
-        determine_operation_from_dict(operations)
+        reload_self = True
+        while reload_self:
+            operations = {
+                'Delete account' : {'function' : self._Account_Manager._delete_account, 'vars' : {'account' : account}},
+                'Ammend details' : {'function' : self._Account_Manager._ammend_account, 'vars' : {'account' : account}},
+                'View all account details' : {'function' : view_readable, 'vars' : {'read_item' : account._config[account._holder][0]}},
+                'View scheduled transactions' : {
+                    'function' : view_readable, 
+                    'vars' : {
+                        'name':'scheduled_transactions', 
+                        'read_item':account._config[account._holder][0]['scheduled_transactions']
+                    }
+                },
+                'View most recent transaction' : {'function' : account._view_most_recent_transaction_date, 'vars' : None},
+                'Add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
+                'Add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
+                'Import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
+                'Exit' : {'function' : 'Exit'}
+            }
+            reload_self = determine_operation_from_dict(operations, refresh_dict=True)
                     
     def _load_options(self) -> None:
-        operations = {
-            'Add a new account' : {'function' : self._add_account,'vars' : None},
-            'Delete an existing account' : {'function' : self._Account_Manager._delete_account, 'vars' : None},
-            'Manage an existing account' : {'function' : self._manage_account,'vars' : None},
-            'Exit' : {'function' : 'Exit'}
-        }
-        determine_operation_from_dict(operations)
+        reload_self = True
+        while reload_self:
+            operations = {
+                'Add a new account' : {'function' : self._add_account,'vars' : None},
+                'Delete an existing account' : {'function' : self._Account_Manager._delete_account, 'vars' : None},
+                'Manage an existing account' : {'function' : self._manage_account,'vars' : None},
+                'Exit' : {'function' : 'Exit'}
+            }
+            reload_self = determine_operation_from_dict(operations)
 
 
 

@@ -126,8 +126,8 @@ class Account(object):
     def _add_scheduled_transaction(self) -> None:        
         self._scheduled_transactions += [self._get_scheduled_transaction_from_user()]
     
-    def _create_scheduled_transaction(self, t_summary:str=None, t_type:str=None, t_amount:float=None, t_freq:str=None, t_freq_timing=None, t_desc:str=None, new:bool=True) -> Scheduled_Transaction:
-        return Scheduled_Transaction(t_summary, t_type, t_amount, t_freq, t_freq_timing, t_desc, new)
+    def _create_scheduled_transaction(self, t_summary:str=None, t_type:str=None, t_amount:float=None, t_freq:str=None, t_desc:str=None, new:bool=True) -> Scheduled_Transaction:
+        return Scheduled_Transaction(t_summary, t_type, t_amount, t_freq, t_desc, new)
 
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
