@@ -1,8 +1,8 @@
-from common.config_info import Config
+from app.common.config_info import Config
 
 from app.account import Account_Manager
 
-from helpers.input_helpers import view_readable, determine_operation_from_dict
+from app.helpers.input_helpers import view_readable, determine_operation_from_dict
 
 import json
 import os
