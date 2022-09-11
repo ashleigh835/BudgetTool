@@ -1,20 +1,22 @@
-from app.transaction import Transaction
+from app.transaction import Transaction, Transaction_Manager
 from app.scheduled_transaction import Scheduled_Transaction
 
-from helpers.input_helpers import input_yn, determine_from_ls, enum_ls
+from helpers.input_helpers import input_yn, determine_from_ls, enum_ls, view_readable
+from helpers.date_helpers import days_matching_within_range
 
 from common.config_info import Config
 
 from datetime import datetime
-import pandas as pd
 import os
+import pandas as pd
+import numpy as np
 
 class Account(object):
     def __init__(self, account_holder:str, account_name:str, account_type:str=None, account_provider:str=None, scheduled_transactions:list=[]) -> None:
         self._holder = None
         self._name = None
-        self._type = None
-        self._provider = None
+        # self._type = None
+        # self._provider = None
 
         self._scheduled_transactions = []
 
@@ -28,7 +30,7 @@ class Account(object):
         if scheduled_transactions:
             self._scheduled_transactions += self.get_scheduled_transactions_from_config(scheduled_transactions)
 
-        self._transaction_df = self._load_transactions_from_drive()
+        self._T_M = Transaction_Manager(hdf_path=self._transaction_hdf, provider=self._provider)
         pass
     
     @property
@@ -50,6 +52,10 @@ class Account(object):
         return _config
     
     @property
+    def _scheduled_transaction_summary(self) -> list:
+        return [st._summary for st in self._scheduled_transactions]
+
+    @property
     def _transaction_hdf(self) -> str:
         return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
@@ -67,67 +73,8 @@ class Account(object):
     def _determine_provider(self) -> str:
         return determine_from_ls(Transaction._supported_providers, 'a provider')
 
-    def _determine_transaction_style(self) -> None:
-        _class = None
-        for cls in Transaction.__subclasses__():
-            if self._provider in cls.supported_providers:
-                _class = cls
-        if _class is None:
-            raise Exception(f"No supported transaction style for provider - contact development team")
-        
-        return _class
-    
-    def _load_transactions_from_csv(self, path:str=None, write:bool=True) -> None:
-        if not path:
-            print('please input the path of the file (including extension)')
-            path = input('path: ')
-            if not os.path.isfile(path):
-                print('file not found.')
-                return
-        self._transaction_class_type = self._determine_transaction_style()
-        df = self._import_from_csv(path) 
-        for index, transaction_detail in df.iterrows():
-            transaction = self._transaction_class_type(transaction_detail.to_dict())
-            self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
-            self._clean_transactions()
-        if write: self._store_transactions_to_drive()
-    
-    def _load_individual_transaction(self, transaction_detail:dict, write:bool=True) -> None:
-        self._transaction_class_type = self._determine_transaction_style()
-        transaction = self._transaction_class_type(transaction_detail)
-        self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
-        if write: self._store_transactions_to_drive()
-
-    def _load_transactions_from_folder(self, path:str=None, write:bool=True) -> None:
-        path = path or self.settings['upload_folder']
-        archive = self.settings['upload_archive'] + os.sep
-        for entry in os.scandir(path):  
-            self._load_transactions_from_csv(entry.path, write=False)
-            os.system(f'move {entry.path} {archive}{os.path.basename(entry.path)}')
-        if write: self._store_transactions_to_drive()
-
-    def _clean_transactions(self) -> None:
-        df = self._transaction_df
-        df.drop_duplicates(inplace=True)
-        # remove historical pending transactions
-        df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
-        self._transaction_df = df
-
-    def _load_transactions_from_drive(self) -> pd.DataFrame():
-        if os.path.isfile(self._transaction_hdf):
-            return pd.read_hdf(self._transaction_hdf, key='transactions', mode='r')
-        else:
-            return pd.DataFrame()
-
-    def _store_transactions_to_drive(self) -> None:
-        if not self._transaction_df.empty:
-            self._transaction_df.to_hdf(self._transaction_hdf, key='transactions', mode='w', complevel=4, complib='zlib', encoding='UTF-8')
-
-    def _get_most_recent_transaction_date(self) -> dict:
-        if not self._transaction_df.empty:
-            return self._transaction_df.date.max().date()
-        else:
-            return 'no transactions'
+    def _get_most_recent_transaction_date(self) -> datetime.date:
+        return self._T_M._most_recent_transaction._date.date()
 
     def _view_most_recent_transaction_date(self) -> dict:
         print(self._get_most_recent_transaction_date())
@@ -141,8 +88,36 @@ class Account(object):
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
 
-    def _import_from_csv(self, path:str) -> pd.DataFrame():
-        return pd.read_csv(path, index_col=False)
+    def _create_scheduled_transaction_df(self, _start_date:datetime.date, days:int=45) -> pd.DataFrame():
+        df = pd.DataFrame()
+        for st in self._scheduled_transactions:            
+            for rule in st._config['_frequency'].keys():
+                if rule == 'monthly':
+                    for date in days_matching_within_range(_start_date, days, st._config['_frequency']['monthly']):
+                        multiplier = 1
+                        if st._type == 'DEBIT': multiplier = -1
+                        t_detail = {
+                            'type' : st._type ,
+                            'date' : date,
+                            'description' : st._summary ,
+                            'amount' : st._amount * multiplier,
+                            'payment_type' : '' ,
+                            'balance' : np.nan,
+                            'scheduled' : True,
+                            'forecasted' : True
+                        }
+                        t = Transaction(**t_detail)
+                        df = pd.concat([df,t._df_entry], axis=0)
+                else:
+                    print(f'{rule} frequency not yet supported for projection')
+        
+        if 'date' in df.columns: df.sort_values(by='date', inplace=True)
+        return df
+
+    def _project_transactions(self, days:int=45) -> pd.DataFrame():
+        _start_date = self._get_most_recent_transaction_date()
+        st_df = self._create_scheduled_transaction_df(_start_date, days)
+        self._T_M._project_transactions(scheduled_transactions_df=st_df)
 
 class Account_Manager(object):
     _accounts=[]
@@ -271,3 +246,13 @@ class Account_Manager(object):
             account._type = account._determine_account_type()
         elif var == 'account_provider':
             account._provider = account._determine_provider()
+    
+    def _ammend_scheduled_transactions(self, account:Account) -> None:        
+        st = determine_from_ls(account._scheduled_transactions, string='an account', labels=account._scheduled_transaction_summary)
+        
+        print(st._config)
+        view_readable(st._config)
+
+        var = determine_from_ls(st._config.keys())
+        if var == '_amount':
+            st._amount = st._determine_amount()

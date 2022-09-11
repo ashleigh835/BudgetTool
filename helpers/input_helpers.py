@@ -71,7 +71,7 @@ def determine_weekday() -> int:
 def determine_day_of_month(additional_options:list = []) -> str:
     return determine_from_range(1,31,additional_options)
 
-def determine_date() -> datetime.date:
+def determine_date(return_as_date:bool=False):
     print('please input a date in the format of YYYY-MM-DD')
     good_date = False
     e_enthusiasm = ''
@@ -88,7 +88,10 @@ def determine_date() -> datetime.date:
                 e_enthusiasm = e_enthusiasm + '!'
         except Exception as e:
             print(f'No idea what went wrong there.\n {type(e)}: {e}')
-    return dte.date()
+    if return_as_date: 
+        return dte.date()
+    else:
+        return date_input
 
 def determine_operation_from_dict(operations:dict, refresh_dict:bool=False) -> bool:  
     finished:bool = False
@@ -97,14 +100,16 @@ def determine_operation_from_dict(operations:dict, refresh_dict:bool=False) -> b
         print()
         choice = determine_from_ls(operations.values(), labels=operations.keys())
 
-        if choice['function'] == 'Exit':
-            finished = True
-        else:
+        if 'print' in choice:
+            print(choice['print'])
+        elif 'function' in choice:
             fn = choice['function']
             if not choice['vars']: 
                 fn()
             else: 
                 fn(**choice['vars'])
+        elif 'exit' in choice:
+            finished = True
 
         if (refresh_dict) & (not finished):
             return True
@@ -113,7 +118,7 @@ def determine_operation_from_dict(operations:dict, refresh_dict:bool=False) -> b
 
 def parse_readable(name:str, val, comment_width:int, level:int=1) -> list:
     print_ls = []
-    if type(val) == str:
+    if type(val) in (str,float,int):
         print_ls += [f'{name} : {val}']
     elif type(val) == list:   
         if level<=2: print_ls += ['', name+':']

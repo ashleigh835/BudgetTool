@@ -13,7 +13,7 @@ class GUI(object):
         self._account_config_path = self.settings['account_config']
         self._account_config = self._determine_config()
 
-        self._Account_Manager = self._load_accounts()
+        self._A_M = self._load_accounts()
 
         self._load_options()
 
@@ -30,16 +30,16 @@ class GUI(object):
         self.__init__()
     
     def _check_save(self) -> bool:
-        if self._account_config != self._Account_Manager._config: 
+        if self._account_config != self._A_M._config: 
             print('***'*20)
             print(self._account_config)
             print('---'*20)
-            print(self._Account_Manager._config)
+            print(self._A_M._config)
             print('***'*20)
             return True
 
     def _save(self) -> None:
-        self._rewrite_config(self._Account_Manager._config)
+        self._rewrite_config(self._A_M._config)
 
     def _determine_config(self) -> dict:
         if os.path.isfile(self._account_config_path):
@@ -65,19 +65,20 @@ class GUI(object):
         return Account_Manager(self._account_config)
 
     def _add_account(self) -> None:
-        self._Account_Manager._add_account()
-        self._rewrite_config(self._Account_Manager._config)
+        self._A_M._add_account()
+        self._rewrite_config(self._A_M._config)
 
     def _manage_account(self) -> None:
-        """_summary_: Offer options to manage account.
+        """_summary_ Offer options to manage account.
         """        
-        account = self._Account_Manager._choose_account()
+        account = self._A_M._choose_account()
         # Loop from outside of the function so that any changes to self will be reloaded into the operations dict and pass through to the determine function
         reload_self = True
         while reload_self:
             operations = {
-                'Delete account' : {'function' : self._Account_Manager._delete_account, 'vars' : {'account' : account}},
-                'Ammend details' : {'function' : self._Account_Manager._ammend_account, 'vars' : {'account' : account}},
+                'Delete account' : {'function' : self._A_M._delete_account, 'vars' : {'account' : account}},
+                'Ammend details' : {'function' : self._A_M._ammend_account, 'vars' : {'account' : account}},
+                'Ammend scheduled transactions' : {'function' : self._A_M._ammend_scheduled_transactions, 'vars' : {'account' : account}},
                 'View all account details' : {'function' : view_readable, 'vars' : {'read_item' : account._config[account._holder][0]}},
                 'View scheduled transactions' : {
                     'function' : view_readable, 
@@ -88,9 +89,10 @@ class GUI(object):
                 },
                 'View date of most recent transaction' : {'function' : account._view_most_recent_transaction_date, 'vars' : None},
                 'Add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
-                'Add transactions from a path' : {'function' : account._load_transactions_from_csv, 'vars' : None},
-                'Import all csvs in upload folder' : {'function' : account._load_transactions_from_folder, 'vars' : None},
-                'Exit' : {'function' : 'Exit'}
+                'Add transactions from a path' : {'function' : account._T_M._load_transactions_from_csv, 'vars' : None},
+                'Import all csvs in upload folder' : {'function' : account._T_M._load_transactions_from_folder, 'vars' : None},
+                'Project Transactions' : {'function' : account._project_transactions, 'vars' : None},
+                'Exit' : {'exit' : ''}
             }
             reload_self = determine_operation_from_dict(operations, refresh_dict=True)
                     
@@ -102,9 +104,9 @@ class GUI(object):
         while reload_self:
             operations = {
                 'Add a new account' : {'function' : self._add_account,'vars' : None},
-                'Delete an existing account' : {'function' : self._Account_Manager._delete_account, 'vars' : None},
+                'Delete an existing account' : {'function' : self._A_M._delete_account, 'vars' : None},
                 'Manage an existing account' : {'function' : self._manage_account,'vars' : None},
-                'Exit' : {'function' : 'Exit'}
+                'Exit' : {'exit' : ''}
             }
             reload_self = determine_operation_from_dict(operations)
 
