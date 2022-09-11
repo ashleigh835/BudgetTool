@@ -1,7 +1,7 @@
-from app.transaction import Transaction
+from app.transaction import Transaction, Transaction_Manager
 from app.scheduled_transaction import Scheduled_Transaction
 
-from helpers.input_helpers import input_yn, determine_from_ls, enum_ls
+from helpers.input_helpers import input_yn, determine_from_ls, enum_ls, view_readable
 from helpers.date_helpers import days_matching_within_range
 
 from common.config_info import Config
@@ -52,6 +52,10 @@ class Account(object):
         return _config
     
     @property
+    def _scheduled_transaction_summary(self) -> list:
+        return [st._summary for st in self._scheduled_transactions]
+
+    @property
     def _transaction_hdf(self) -> str:
         return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
@@ -59,13 +63,13 @@ class Account(object):
     def _most_recent_transaction(self) -> Transaction:
         if not self._transaction_df.empty:
             t = self._transaction_df[~self._transaction_df.balance.isna()]
-            if not t.empty: return Transaction(**t.tail(1).iloc[0].to_dict())
+            if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
 
     @property
     def _most_recent_pending_transaction(self) -> Transaction:
         if not self._transaction_df.empty:
             t = self._transaction_df[self._transaction_df.balance.isna()]
-            if not t.empty: return Transaction(**t.tail(1).iloc[0].to_dict())
+            if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
 
     def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
         scheduled_transactions = []
@@ -103,6 +107,7 @@ class Account(object):
         for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
+            self._transaction_df.reset_index(drop=True, inplace=True)
         self._clean_transactions()
         if write: self._store_transactions_to_drive()
     
@@ -127,7 +132,8 @@ class Account(object):
         df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
         
         df.reset_index(drop=False, inplace=True)
-        df = df.sort_values(by=['date','index']).drop(columns='index').reset_index(drop=True)
+        # if the csv balance is ordered with the most recent trasnaction at the top, it would need to be ascending=[False,True]
+        df = df.sort_values(by=['date','index'], ascending=[False,False]).drop(columns='index').reset_index(drop=True)
         self._transaction_df = df
 
     def _load_transactions_from_drive(self) -> pd.DataFrame():
@@ -155,41 +161,47 @@ class Account(object):
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
 
-    def _project_transactions(self, days:int=30) -> pd.DataFrame():
+    def _project_transactions(self, days:int=45) -> pd.DataFrame():
         _start_date = self._get_most_recent_transaction_date()
-        df = self._transaction_df[self._transaction_df.date.dt.date >= _start_date + timedelta(days=-5)].copy()
-        print(df)
-
+        last_5_dates_with_transactions = [date.date() for date in self._transaction_df.date.sort_values(ascending=True).drop_duplicates().tail(5)]
+        t_df = self._transaction_df[self._transaction_df.date.dt.date.isin(last_5_dates_with_transactions)].copy()
+        st_df = pd.DataFrame()
         for st in self._scheduled_transactions:            
             for rule in st._config['_frequency'].keys():
                 if rule == 'monthly':
                     for date in days_matching_within_range(_start_date, days, st._config['_frequency']['monthly']):
+                        multiplier = 1
+                        if st._type == 'DEBIT': multiplier = -1
                         t_detail = {
                             'type' : st._type ,
                             'date' : date,
                             'description' : st._summary ,
-                            'amount' : st._amount ,
+                            'amount' : st._amount * multiplier,
                             'payment_type' : '' ,
                             'balance' : np.nan,
                             'scheduled' : True,
                             'forecasted' : True
                         }
                         t = Transaction(**t_detail)
-                        df = pd.concat([df,t._df_entry], axis=0)
+                        st_df = pd.concat([st_df,t._df_entry], axis=0)
                 else:
                     print(f'{rule} frequency not yet supported for projection')
-                 
-        # for day in range(0,days):
-        #     _date = _start_date + timedelta(days=day)
-        #     print(_date)
-                
-        df.reset_index(drop=True,inplace=True)
-        df.loc[df.balance.isna(), 'balance'] = df['balance'].ffill() + df['amount']
         
-        print(df)    
-        ax = df.groupby('date',as_index=False).agg({'balance':'last'}).plot(x = 'date',y = 'balance')  
-        fig = ax.get_figure()
-        fig.savefig('test2.pdf')
+        projected_transactions = Transaction_Manager(t_df)
+        t_df = projected_transactions._order_transactions()        
+        
+        st_df.sort_values(by='date', inplace=True)
+
+        df = pd.concat([t_df, st_df], axis=0)
+        df.reset_index(drop=True,inplace=True)
+
+        for i in range(len(t_df), len(df)):
+            df.loc[i, 'balance'] = df.loc[i-1, 'balance'] + df.loc[i,'amount']
+        
+        print(df)
+        # ax = df.groupby('date',as_index=False).agg({'balance':'last'}).plot(x = 'date',y = 'balance')  
+        # fig = ax.get_figure()
+        # fig.savefig('test2.pdf')
         return df  
 
 class Account_Manager(object):
@@ -319,3 +331,13 @@ class Account_Manager(object):
             account._type = account._determine_account_type()
         elif var == 'account_provider':
             account._provider = account._determine_provider()
+    
+    def _ammend_scheduled_transactions(self, account:Account) -> None:        
+        st = determine_from_ls(account._scheduled_transactions, string='an account', labels=account._scheduled_transaction_summary)
+        
+        print(st._config)
+        view_readable(st._config)
+
+        var = determine_from_ls(st._config.keys())
+        if var == '_amount':
+            st._amount = st._determine_amount()
