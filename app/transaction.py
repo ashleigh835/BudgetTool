@@ -1,4 +1,4 @@
-from common.config_info import Config
+from app.common.config_info import Config
 
 from datetime import datetime
 import pandas as pd
