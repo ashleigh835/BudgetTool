@@ -1,5 +1,9 @@
+from common.config_info import Config
+
+from datetime import datetime
 import pandas as pd
 import numpy as np
+import os
 
 class Transaction(object):
     _supported_providers = []
@@ -75,20 +79,116 @@ class Trasaction_Type_2(Transaction):
         return self._translate(kwargs)
 
 class Transaction_Manager(object):
-    def __init__(self, df:pd.DataFrame()=pd.DataFrame()) -> None:
-        self._transactions=[]
-        self._df = df
+    def __init__(self, df:pd.DataFrame()=pd.DataFrame(), hdf_path:str=None, provider:str=None) -> None:
+        
+        self.settings:dict = Config().settings()
+
+        self._transactions:list = []
+        self._hdf_path:str = hdf_path
+        self._provider:str = provider
+
+        self._df = self._load_df(df)
+
         pass
 
-    # @property
-    # def _config(self) -> dict:
-    #     _config = {}
-    #     for transaction in self._accounts:
-    #         if account._holder in _config.keys(): 
-    #             _config[account._holder] += account._config[account._holder]
-    #         else:
-    #             _config[account._holder] = account._config[account._holder]
-    #     return _config
+    def _load_transactions_from_drive(self) -> pd.DataFrame():
+        if os.path.isfile(self._hdf_path):
+            return pd.read_hdf(self._hdf_path, key='transactions', mode='r')
+        else:
+            return pd.DataFrame()
+
+    def _load_df(self, df:pd.DataFrame()=pd.DataFrame()) -> pd.DataFrame():
+        if not df.empty:
+            return df
+        elif self._hdf_path:
+            return self._load_transactions_from_drive()
+
+    @property
+    def _most_recent_transaction(self) -> Transaction:
+        if not self._df.empty:
+            t = self._df[~self._df.balance.isna()]
+            if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
+
+    @property
+    def _most_recent_pending_transaction(self) -> Transaction:
+        if not self._df.empty:
+            t = self._df[self._df.balance.isna()]
+            if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
+    
+    def _determine_transaction_style(self) -> None:
+        _class = None
+        for cls in Transaction.__subclasses__():
+            if self._provider in cls.supported_providers:
+                _class = cls
+        if _class is None:
+            raise Exception(f"No supported transaction style for provider - contact development team")
+        
+        return _class
+    
+    def _load_transactions_from_csv(self, path:str=None, write:bool=True) -> None:
+        if not path:
+            print('please input the path of the file (including extension)')
+            path = input('path: ')
+            if not os.path.isfile(path):
+                print('file not found.')
+                return
+        self._transaction_class_type = self._determine_transaction_style()
+        df = pd.read_csv(path, index_col=False)
+        for index, transaction_detail in df.iterrows():
+            transaction = self._transaction_class_type(transaction_detail.to_dict())
+            self._df = pd.concat([self._df, transaction._df_entry], axis=0)
+            self._df.reset_index(drop=True, inplace=True)
+        self._clean_transactions()
+        if write: self._store_transactions_to_drive()
+    
+    def _load_individual_transaction(self, transaction_detail:dict, write:bool=True) -> None:
+        self._transaction_class_type = self._determine_transaction_style()
+        transaction = self._transaction_class_type(transaction_detail)
+        self._df = pd.concat([self._df, transaction._df_entry], axis=0)
+        if write: self._store_transactions_to_drive()
+
+    def _load_transactions_from_folder(self, path:str=None, write:bool=True) -> None:
+        path = path or self.settings['upload_folder']
+        archive = self.settings['upload_archive'] + os.sep
+        for entry in os.scandir(path):  
+            self._load_transactions_from_csv(entry.path, write=False)
+            os.system(f'move {entry.path} {archive}{os.path.basename(entry.path)}')
+        if write: self._store_transactions_to_drive()
+
+    def _clean_transactions(self) -> None:
+        df = self._df
+        df.drop_duplicates(inplace=True)
+        # remove historical pending transactions
+        df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
+        
+        df.reset_index(drop=False, inplace=True)
+        # if the csv balance is ordered with the most recent trasnaction at the top, it would need to be ascending=[False,True]
+        df = df.sort_values(by=['date','index'], ascending=[False,False]).drop(columns='index').reset_index(drop=True)
+        self._df = df
+
+    def _store_transactions_to_drive(self) -> None:
+        if not self._df.empty:
+            self._df.to_hdf(self._hdf_path, key='transactions', mode='w', complevel=4, complib='zlib', encoding='UTF-8')
+
+    def _project_transactions(self, existing_dates:int=5, scheduled_transactions_df:pd.DataFrame()=pd.DataFrame()) -> pd.DataFrame():
+        last_5_dates_with_transactions = [date.date() for date in self._df.date.sort_values(ascending=True).drop_duplicates().tail(existing_dates)]
+        existing_transactions_df = self._df[self._df.date.dt.date.isin(last_5_dates_with_transactions)].copy()
+        
+        # Faster to create a subclass of smaller subset of transactions and order those, instead of ordering all transactions
+        existing_transactions_df = Transaction_Manager(df = existing_transactions_df)
+        existing_transactions_df = existing_transactions_df._order_transactions()                
+
+        df = pd.concat([existing_transactions_df, scheduled_transactions_df], axis=0)
+        df.reset_index(drop=True,inplace=True)
+
+        for i in range(len(existing_transactions_df), len(df)):
+            df.loc[i, 'balance'] = df.loc[i-1, 'balance'] + df.loc[i,'amount']
+        
+        print(df)
+        # ax = df.groupby('date',as_index=False).agg({'balance':'last'}).plot(x = 'date',y = 'balance')  
+        # fig = ax.get_figure()
+        # fig.savefig('test2.pdf')
+        return df  
 
     def _find_first_and_last_transactions(self, df:pd.DataFrame()=pd.DataFrame()) -> pd.DataFrame():
         """_summary_ REQUIRES df with field: date with dtype datetime64ns

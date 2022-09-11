@@ -6,7 +6,7 @@ from helpers.date_helpers import days_matching_within_range
 
 from common.config_info import Config
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import pandas as pd
 import numpy as np
@@ -30,7 +30,7 @@ class Account(object):
         if scheduled_transactions:
             self._scheduled_transactions += self.get_scheduled_transactions_from_config(scheduled_transactions)
 
-        self._transaction_df = self._load_transactions_from_drive()
+        self._T_M = Transaction_Manager(hdf_path=self._transaction_hdf, provider=self._provider)
         pass
     
     @property
@@ -59,18 +59,6 @@ class Account(object):
     def _transaction_hdf(self) -> str:
         return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
-    @property
-    def _most_recent_transaction(self) -> Transaction:
-        if not self._transaction_df.empty:
-            t = self._transaction_df[~self._transaction_df.balance.isna()]
-            if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
-
-    @property
-    def _most_recent_pending_transaction(self) -> Transaction:
-        if not self._transaction_df.empty:
-            t = self._transaction_df[self._transaction_df.balance.isna()]
-            if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
-
     def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
         scheduled_transactions = []
         _config = _config or self._scheduled_transaction_config
@@ -85,69 +73,8 @@ class Account(object):
     def _determine_provider(self) -> str:
         return determine_from_ls(Transaction._supported_providers, 'a provider')
 
-    def _determine_transaction_style(self) -> None:
-        _class = None
-        for cls in Transaction.__subclasses__():
-            if self._provider in cls.supported_providers:
-                _class = cls
-        if _class is None:
-            raise Exception(f"No supported transaction style for provider - contact development team")
-        
-        return _class
-    
-    def _load_transactions_from_csv(self, path:str=None, write:bool=True) -> None:
-        if not path:
-            print('please input the path of the file (including extension)')
-            path = input('path: ')
-            if not os.path.isfile(path):
-                print('file not found.')
-                return
-        self._transaction_class_type = self._determine_transaction_style()
-        df = pd.read_csv(path, index_col=False)
-        for index, transaction_detail in df.iterrows():
-            transaction = self._transaction_class_type(transaction_detail.to_dict())
-            self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
-            self._transaction_df.reset_index(drop=True, inplace=True)
-        self._clean_transactions()
-        if write: self._store_transactions_to_drive()
-    
-    def _load_individual_transaction(self, transaction_detail:dict, write:bool=True) -> None:
-        self._transaction_class_type = self._determine_transaction_style()
-        transaction = self._transaction_class_type(transaction_detail)
-        self._transaction_df = pd.concat([self._transaction_df, transaction._df_entry], axis=0)
-        if write: self._store_transactions_to_drive()
-
-    def _load_transactions_from_folder(self, path:str=None, write:bool=True) -> None:
-        path = path or self.settings['upload_folder']
-        archive = self.settings['upload_archive'] + os.sep
-        for entry in os.scandir(path):  
-            self._load_transactions_from_csv(entry.path, write=False)
-            os.system(f'move {entry.path} {archive}{os.path.basename(entry.path)}')
-        if write: self._store_transactions_to_drive()
-
-    def _clean_transactions(self) -> None:
-        df = self._transaction_df
-        df.drop_duplicates(inplace=True)
-        # remove historical pending transactions
-        df = df[~((df.balance.isna()) & (df.date.dt.date <= datetime.now().date()))]
-        
-        df.reset_index(drop=False, inplace=True)
-        # if the csv balance is ordered with the most recent trasnaction at the top, it would need to be ascending=[False,True]
-        df = df.sort_values(by=['date','index'], ascending=[False,False]).drop(columns='index').reset_index(drop=True)
-        self._transaction_df = df
-
-    def _load_transactions_from_drive(self) -> pd.DataFrame():
-        if os.path.isfile(self._transaction_hdf):
-            return pd.read_hdf(self._transaction_hdf, key='transactions', mode='r')
-        else:
-            return pd.DataFrame()
-
-    def _store_transactions_to_drive(self) -> None:
-        if not self._transaction_df.empty:
-            self._transaction_df.to_hdf(self._transaction_hdf, key='transactions', mode='w', complevel=4, complib='zlib', encoding='UTF-8')
-
     def _get_most_recent_transaction_date(self) -> datetime.date:
-        return self._most_recent_transaction._date.date()
+        return self._T_M._most_recent_transaction._date.date()
 
     def _view_most_recent_transaction_date(self) -> dict:
         print(self._get_most_recent_transaction_date())
@@ -161,11 +88,8 @@ class Account(object):
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
 
-    def _project_transactions(self, days:int=45) -> pd.DataFrame():
-        _start_date = self._get_most_recent_transaction_date()
-        last_5_dates_with_transactions = [date.date() for date in self._transaction_df.date.sort_values(ascending=True).drop_duplicates().tail(5)]
-        t_df = self._transaction_df[self._transaction_df.date.dt.date.isin(last_5_dates_with_transactions)].copy()
-        st_df = pd.DataFrame()
+    def _create_scheduled_transaction_df(self, _start_date:datetime.date, days:int=45) -> pd.DataFrame():
+        df = pd.DataFrame()
         for st in self._scheduled_transactions:            
             for rule in st._config['_frequency'].keys():
                 if rule == 'monthly':
@@ -183,26 +107,17 @@ class Account(object):
                             'forecasted' : True
                         }
                         t = Transaction(**t_detail)
-                        st_df = pd.concat([st_df,t._df_entry], axis=0)
+                        df = pd.concat([df,t._df_entry], axis=0)
                 else:
                     print(f'{rule} frequency not yet supported for projection')
         
-        projected_transactions = Transaction_Manager(t_df)
-        t_df = projected_transactions._order_transactions()        
-        
-        st_df.sort_values(by='date', inplace=True)
+        if 'date' in df.columns: df.sort_values(by='date', inplace=True)
+        return df
 
-        df = pd.concat([t_df, st_df], axis=0)
-        df.reset_index(drop=True,inplace=True)
-
-        for i in range(len(t_df), len(df)):
-            df.loc[i, 'balance'] = df.loc[i-1, 'balance'] + df.loc[i,'amount']
-        
-        print(df)
-        # ax = df.groupby('date',as_index=False).agg({'balance':'last'}).plot(x = 'date',y = 'balance')  
-        # fig = ax.get_figure()
-        # fig.savefig('test2.pdf')
-        return df  
+    def _project_transactions(self, days:int=45) -> pd.DataFrame():
+        _start_date = self._get_most_recent_transaction_date()
+        st_df = self._create_scheduled_transaction_df(_start_date, days)
+        self._T_M._project_transactions(scheduled_transactions_df=st_df)
 
 class Account_Manager(object):
     _accounts=[]
