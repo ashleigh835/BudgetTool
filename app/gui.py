@@ -23,7 +23,6 @@ class App(object):
 
         self._A_M = self._load_accounts()
 
-        # Initializes Dash application
         self.dash = self._initialize()
         self.dash.title = 'Budget Tool'
         self._get_layouts()
@@ -118,17 +117,20 @@ class App(object):
         self.layouts = {'Home':{'tabs':{}},'Settings':{'tabs':{}}}
 
         self.layouts['Home']['tabs']['overview'] = self.get_tab_overview_layout(self._A_M._accounts[0])
-        self.layouts['Home']['tabs']['accounts'] = tab_accounts()
+        self.layouts['Home']['tabs']['accounts'] = self.get_tab_accounts_layout()
 
     def get_tab_overview_layout(self, selected_account):
         df = selected_account._T_M._df.copy()
         df['date'] = df.date.dt.date
-        df['amount'] = df.amount.astype('float64')
+        df['amount'] = df.amount.astype('float64')        
         ax = df.groupby('date', as_index=False).agg({'balance':'last'})
         fig = px.area(ax, x = 'date',y = 'balance')#, color="City", barmode="group")
         return tab_overview(df.head(15), fig)
 
-
+    def get_tab_accounts_layout(self):
+        summary = self._A_M._return_accounts_summary()
+        return tab_accounts(summary)
+        
 
 
     def callbacks(self, dash:object):

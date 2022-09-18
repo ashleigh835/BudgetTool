@@ -1,5 +1,5 @@
 from dash import dcc, html, dash_table
-from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
 
 tab_Style = {
     'padding': '0',
@@ -29,5 +29,34 @@ def tab_overview(df, fig):
     ]
 )
 
-def tab_accounts(): 
-    return html.Div("test")
+def tab_accounts(accounts:dict={}): 
+    children = []
+    footer = ""
+    for account in accounts:
+        great_children_sm = []
+        great_children_big = []
+        for info in accounts[account].keys():
+            if info == 'Holder':
+                footer = dbc.CardFooter(f"{info}: {accounts[account][info]}")
+            elif info in (['Type','Provider']):
+                great_children_sm+=[html.Div(html.Small(f"{info}: {accounts[account][info]}", className="card-text text-muted"))]
+            else:
+                great_children_big+=[html.Div(f"{info}: {accounts[account][info]}", className="card-text")]
+        
+        great_children = great_children_big + [html.Div(style={'padding':'1%'})] + great_children_sm
+        children += [
+            dbc.Row(
+                dbc.Col(
+                    dbc.Card(
+                        [   dbc.CardHeader(html.H5(account)),
+                            dbc.CardBody(great_children),
+                            footer
+                        ],
+                        className='mb-3 w-50',
+                    ),
+                    width={"size":8,'offset':4}
+                ),
+                justify = "center"
+            )
+        ]
+    return html.Div(children)

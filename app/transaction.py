@@ -110,6 +110,12 @@ class Transaction_Manager(object):
             if not t.empty: return Transaction(**t.head(1).iloc[0].to_dict())
 
     @property
+    def _earliest_transaction(self) -> Transaction:
+        if not self._df.empty:
+            t = self._df[~self._df.balance.isna()]
+            if not t.empty: return Transaction(**t.tail(1).iloc[0].to_dict())
+
+    @property
     def _most_recent_pending_transaction(self) -> Transaction:
         if not self._df.empty:
             t = self._df[self._df.balance.isna()]
