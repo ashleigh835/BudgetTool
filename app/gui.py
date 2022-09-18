@@ -2,33 +2,183 @@ from app.common.config_info import Config
 
 from app.account import Account_Manager
 
-from app.helpers.input_helpers import view_readable, determine_operation_from_dict
+from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
 
+import dash_bootstrap_components as dbc
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+
+
+import plotly.express as px
 import json
 import os
 
-class GUI(object):
+class App(object):
     def __init__(self) -> None:
         self.settings = Config().settings()
         self._account_config_path = self.settings['account_config']
+
         self._account_config = self._determine_config()
 
         self._A_M = self._load_accounts()
 
-        self._load_options()
+        self.dash = self._initialize()
+        self.dash.title = 'Budget Tool'
+        self._get_layouts()
+
+        if self.dash is not None and hasattr(self, 'callbacks'):
+            self.callbacks(self.dash)
+            
+        self._run()
 
         if self._check_save(): self._save()
         pass
 
-        # Need an async function to ensure the account_config file always matches account_config
-    
     def __setattr__(self, __name, __value) -> None:
         self.__dict__[__name] = __value
         pass
-
-    def __reset__(self) -> None:
-        self.__init__()
+        
+    def _initialize(self) -> object:
+        return dash.Dash(__name__, 
+            external_stylesheets=[dbc.themes.BOOTSTRAP,"https://use.fontawesome.com/releases/v6.2.0/css/all.css"],
+            suppress_callback_exceptions=True,
+            assets_folder=self.settings['assets']   
+        )
     
+    def _run(self) -> None:
+        self.dash.run_server(debug=True)
+
+    def _get_nav_bar(self) -> html:
+        nav_drop_down = dbc.DropdownMenu(
+            [   dbc.DropdownMenuItem("Home", href="/Home"),
+                dbc.DropdownMenuItem(divider=True),
+                dbc.DropdownMenuItem("Settings", href="/Settings"),
+            ],
+            label="Menu",
+            id="menu_drop_down",
+            align_end=True
+        )
+        return dbc.Navbar(
+            [   dbc.Container(
+                    [   html.A(
+                            dbc.Row(
+                                [   dbc.Col(
+                                        [   html.Img(src=self.dash.get_asset_url('IconW.png'), height='50px', style={'padding-left':'1%','padding-top':'0%','padding-bottom':'0%'}),
+                                            dbc.NavbarBrand("Budget Tool",className="ms-2", style={'font-size': 30, 'padding-left':'1%', 'text-align':'left'})
+                                        ],
+                                        width=9
+                                    ),
+                                    dbc.Col(
+                                        dcc.Markdown("""Icons made by [Eucalyp](https://www.flaticon.com/authors/eucalyp) from [Flaticon](https://www.flaticon.com/)""",
+                                        style = {'font-size': 10, 'text-align':'right', 'color':'white','padding-left':'0%'}),
+                                        width=2
+                                    )
+                                ],
+                                align='center'
+                            ),
+                            style={"width":"100%"}
+                        ),
+                        nav_drop_down
+                    ],
+                    fluid=True,
+                )
+            ],
+            color = 'dark',
+            dark=True
+        )
+
+    def _default_layout(self, content:html) -> html:
+        """
+        Returns content in the default page structure. All pages will be rendered through this default layout.
+        i.e. all pages will have the Navigation header and project footer
+
+        Args:
+            content (html): page data to render
+
+        Returns:
+            html: content wrapped in a default layout
+        """    
+        return html.Div(
+            children=[
+                dcc.Location(id='url', refresh=False),
+                self._get_nav_bar(),
+                html.Div(
+                    content,
+                    id='page-content',
+                    style={'padding-top':'0px'}
+                ),
+            ]
+        )
+
+    def _get_layouts(self) -> None:
+        self.dash.layout = self._default_layout(h_page)
+
+        self.layouts = {'Home':{'tabs':{}},'Settings':{'tabs':{}}}
+
+        self.layouts['Home']['tabs']['overview'] = self.get_tab_overview_layout(self._A_M._accounts[0])
+        self.layouts['Home']['tabs']['accounts'] = self.get_tab_accounts_layout()
+
+    def get_tab_overview_layout(self, selected_account):
+        df = selected_account._T_M._df.copy()
+        df['date'] = df.date.dt.date
+        df['amount'] = df.amount.astype('float64')        
+        ax = df.groupby('date', as_index=False).agg({'balance':'last'})
+        fig = px.area(ax, x = 'date',y = 'balance')#, color="City", barmode="group")
+        return tab_overview(df[['date','type','payment_type','amount','balance','description']].head(15), fig)
+
+    def get_tab_accounts_layout(self):
+        summary = self._A_M._return_accounts_summary()
+        return tab_accounts(summary)
+        
+
+
+    def callbacks(self, dash:object):
+        @dash.callback(Output('page-content', 'children'),[Input('url', 'pathname')])
+        def display_page(pathname):
+            """
+            Change in url will result in this callback.
+            Changes the page content based on the url change
+
+            Args:
+                pathname (str): url of page
+
+            Returns:
+                html: returns page based on provided url
+            """    
+            if pathname == '/Home':
+                return h_page
+            elif pathname == '/Settings':
+                return html.Div('comingsooon')
+            else:
+                return html.Div(pathname)
+
+        @dash.callback(Output('db-tab-content', 'children'), Input('db-tab', 'value'))
+        def render_content(tab):
+            """
+            Render tab content based on the selected tab
+
+            Args:
+                tab (str): string value associated with the id: db-tab
+
+            Returns:
+                html: html content based on tab selected
+            """    
+            if tab == 'overview':
+                return self.layouts['Home']['tabs']['overview']
+            elif tab == 'accounts':
+                return self.layouts['Home']['tabs']['accounts']
+
+    
+
+
+
+
+
+
+
+
+
     def _check_save(self) -> bool:
         if self._account_config != self._A_M._config: 
             print('***'*20)
@@ -63,52 +213,5 @@ class GUI(object):
     
     def _load_accounts(self) -> Account_Manager:
         return Account_Manager(self._account_config)
-
-    def _add_account(self) -> None:
-        self._A_M._add_account()
-        self._rewrite_config(self._A_M._config)
-
-    def _manage_account(self) -> None:
-        """_summary_ Offer options to manage account.
-        """        
-        account = self._A_M._choose_account()
-        # Loop from outside of the function so that any changes to self will be reloaded into the operations dict and pass through to the determine function
-        reload_self = True
-        while reload_self:
-            operations = {
-                'Delete account' : {'function' : self._A_M._delete_account, 'vars' : {'account' : account}},
-                'Ammend details' : {'function' : self._A_M._ammend_account, 'vars' : {'account' : account}},
-                'Ammend scheduled transactions' : {'function' : self._A_M._ammend_scheduled_transactions, 'vars' : {'account' : account}},
-                'View all account details' : {'function' : view_readable, 'vars' : {'read_item' : account._config[account._holder][0]}},
-                'View scheduled transactions' : {
-                    'function' : view_readable, 
-                    'vars' : {
-                        'name':'scheduled_transactions', 
-                        'read_item':account._config[account._holder][0]['scheduled_transactions']
-                    }
-                },
-                'View date of most recent transaction' : {'function' : account._view_most_recent_transaction_date, 'vars' : None},
-                'Add scheduled transactions' : {'function' : account._add_scheduled_transaction, 'vars' : None},
-                'Add transactions from a path' : {'function' : account._T_M._load_transactions_from_csv, 'vars' : None},
-                'Import all csvs in upload folder' : {'function' : account._T_M._load_transactions_from_folder, 'vars' : None},
-                'Project Transactions' : {'function' : account._project_transactions, 'vars' : None},
-                'Exit' : {'exit' : ''}
-            }
-            reload_self = determine_operation_from_dict(operations, refresh_dict=True)
-                    
-    def _load_options(self) -> None:
-        """_summary_ offer initial gui options
-        """        
-        # Loop from outside of the function so that any changes to self will be reloaded into the operations dict and pass through to the determine function
-        reload_self = True
-        while reload_self:
-            operations = {
-                'Add a new account' : {'function' : self._add_account,'vars' : None},
-                'Delete an existing account' : {'function' : self._A_M._delete_account, 'vars' : None},
-                'Manage an existing account' : {'function' : self._manage_account,'vars' : None},
-                'Exit' : {'exit' : ''}
-            }
-            reload_self = determine_operation_from_dict(operations)
-
 
 

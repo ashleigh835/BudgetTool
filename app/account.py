@@ -74,7 +74,20 @@ class Account(object):
         return determine_from_ls(Transaction._supported_providers, 'a provider')
 
     def _get_most_recent_transaction_date(self) -> datetime.date:
-        return self._T_M._most_recent_transaction._date.date()
+        txn = self._T_M._most_recent_transaction
+        if txn: return txn._date.date()
+    
+    def _get_most_recent_transaction_balance(self) -> str:
+        txn = self._T_M._most_recent_transaction
+        if txn: return f"${txn._balance:,.2f}"
+
+    def _get_earliest_transaction_date(self) -> datetime.date:
+        txn = self._T_M._earliest_transaction
+        if txn: return txn._date.date()
+    
+    def _get_earliest_transaction_balance(self) -> str:
+        txn = self._T_M._earliest_transaction
+        if txn: return f"${txn._balance:,.2f}"        
 
     def _view_most_recent_transaction_date(self) -> dict:
         print(self._get_most_recent_transaction_date())
@@ -173,6 +186,18 @@ class Account_Manager(object):
                 account = Account(_holder, **account_config)
                 accounts += [account]
         return accounts
+
+    def _return_accounts_summary(self) -> dict:
+        summary = {}
+        for account in self._accounts:
+            summary[account._name]={
+                'Type':account._type,
+                'Provider':account._provider,
+                'Transaction Timeframe': f"{account._get_earliest_transaction_date() or 'N/A'} - {account._get_most_recent_transaction_date() or 'N/A'}",
+                'Balance':account._get_most_recent_transaction_balance() or "N/A",
+                'Account Holder':account._holder,
+            }
+        return summary
 
     def _determine_nickname(self, confirm_nickname:bool=False) -> None:
         account_name = input('Account Nickname: ')
