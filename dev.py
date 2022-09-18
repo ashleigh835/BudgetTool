@@ -1,12 +1,16 @@
 from app.cliGui import GUI
+from app.gui import App
+from app.helpers.input_helpers import determine_from_ls
 
-gui = GUI()
+# opt = determine_from_ls(['cli','dash'],labels=['command-line-gui','dash-gui'])
+
+run_cli=False
+# if opt == 'cli':
+#     run_cli=True
+
+if run_cli:
+    gui = GUI()
+else:
+    gui = App()
 
 print('Thanks for using BudgetTool.py')
-# plotly==5.10.0
-# matplotlib==3.5.3
-# import pandas as pd
-# df = gui._Account_Manager._accounts[0]._transaction_df
-# ax = df.groupby('date', as_index=False).agg({'balance':'last'}).plot(x = 'date',y = 'balance')
-# fig = ax.get_figure()
-# fig.savefig('test.pdf')
