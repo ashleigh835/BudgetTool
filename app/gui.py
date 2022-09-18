@@ -125,7 +125,7 @@ class App(object):
         df['amount'] = df.amount.astype('float64')        
         ax = df.groupby('date', as_index=False).agg({'balance':'last'})
         fig = px.area(ax, x = 'date',y = 'balance')#, color="City", barmode="group")
-        return tab_overview(df.head(15), fig)
+        return tab_overview(df[['date','type','payment_type','amount','balance','description']].head(15), fig)
 
     def get_tab_accounts_layout(self):
         summary = self._A_M._return_accounts_summary()

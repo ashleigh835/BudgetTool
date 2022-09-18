@@ -195,7 +195,7 @@ class Account_Manager(object):
                 'Provider':account._provider,
                 'Transaction Timeframe': f"{account._get_earliest_transaction_date() or 'N/A'} - {account._get_most_recent_transaction_date() or 'N/A'}",
                 'Balance':account._get_most_recent_transaction_balance() or "N/A",
-                'Holder':account._holder,
+                'Account Holder':account._holder,
             }
         return summary
 

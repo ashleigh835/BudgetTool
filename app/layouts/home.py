@@ -24,20 +24,40 @@ page_layout = html.Div(
 
 def tab_overview(df, fig):
     return html.Div(
-    [   dcc.Graph(id='example-graph', figure=fig),
-        dash_table.DataTable(df.to_dict('records'), [{"name": i, "id": i} for i in df.columns])
-    ]
-)
+        [   dbc.Row(
+                [   dbc.Col(
+                        dbc.Card(
+                            dcc.Graph(id='example-graph', figure=fig),
+                            className='mb-3',
+                        ),
+                        width=8
+                    ),
+                    dbc.Col(
+                        dbc.Row(
+                            [dbc.Card('test',className='mb-3'),dbc.Card('test',className='mb-3')]
+                        ),
+                        width=4
+                    )
+                ],
+                style={'padding-left':'1%','padding-right':'1%'}
+            ),
+            dbc.Row(
+                [   dash_table.DataTable(df.to_dict('records'), [{"name": i, "id": i} for i in df.columns])],
+                style={'padding-left':'1%','padding-right':'1%'}
+            )
+        ]
+    )
 
 def tab_accounts(accounts:dict={}): 
     children = []
-    footer = ""
     for account in accounts:
+        header = dbc.CardHeader([html.H5(account)])
+        footer = ""
         great_children_sm = []
         great_children_big = []
         for info in accounts[account].keys():
-            if info == 'Holder':
-                footer = dbc.CardFooter(f"{info}: {accounts[account][info]}")
+            if info == 'Account Holder':
+                footer = dbc.CardFooter(html.Small(f"{accounts[account][info]}", className="card-text text-muted"))
             elif info in (['Type','Provider']):
                 great_children_sm+=[html.Div(html.Small(f"{info}: {accounts[account][info]}", className="card-text text-muted"))]
             else:
@@ -48,7 +68,7 @@ def tab_accounts(accounts:dict={}):
             dbc.Row(
                 dbc.Col(
                     dbc.Card(
-                        [   dbc.CardHeader(html.H5(account)),
+                        [   header,
                             dbc.CardBody(great_children),
                             footer
                         ],
