@@ -1,6 +1,6 @@
 from app.common.config_info import Config
-
 from app.account import Account_Manager
+from app.transaction import Transaction
 
 from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
 
@@ -8,6 +8,7 @@ import dash_bootstrap_components as dbc
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 
 
 import plotly.express as px
@@ -18,9 +19,7 @@ class App(object):
     def __init__(self) -> None:
         self.settings = Config().settings()
         self._account_config_path = self.settings['account_config']
-
         self._account_config = self._determine_config()
-
         self._A_M = self._load_accounts()
 
         self.dash = self._initialize()
@@ -32,7 +31,8 @@ class App(object):
             
         self._run()
 
-        if self._check_save(): self._save()
+
+        # if self._check_save(): self._save()
         pass
 
     def __setattr__(self, __name, __value) -> None:
@@ -88,6 +88,66 @@ class App(object):
             dark=True
         )
 
+    def _account_creation_modal(self) -> html:
+        return dbc.Modal(
+            [   dbc.ModalHeader("Initial Account Set-Up"),
+                dbc.Card(
+                    [   dbc.FormFloating(
+                            [   dbc.Input(type="text", id='account_name'),
+                                dbc.Label("Account Nickname"),
+                                dbc.FormText("Enter a nickname for your account",color="secondary",),
+                            ],
+                            className="mb-3"
+                        ),
+                        dbc.FormFloating(
+                            [   dbc.Input(type="text", id='account_holder'),
+                                dbc.Label("Account Holder"),
+                                dbc.FormText("Enter the name of the person who holds this account",color="secondary",),
+                            ],
+                            className="mb-3"
+                        ),
+                        dbc.Row(
+                            [   dbc.Label("Account Type", html_for="account_type", width=4),
+                                dbc.Col(
+                                    dbc.RadioItems(
+                                        id="account_type",
+                                        options = [{"label": account_type, "value": account_type} for account_type in self.settings['account_types']],
+                                        value=self.settings['account_types'][0]
+                                    ),
+                                    width=8,
+                                ),
+                            ],
+                            className="mb-3",
+                        ),
+                        dbc.Row(
+                            [   dbc.Label("Account Provider", html_for="account_provider", width=4),
+                                dbc.Col(
+                                    dbc.RadioItems(
+                                        id="account_provider",
+                                        options = [{"label": account_provider, "value": account_provider} for account_provider in Transaction._supported_providers],
+                                        value=Transaction._supported_providers[0]
+                                    ),
+                                    width=8,
+                                ),
+                            ],
+                            className="mb-3",
+                        )
+
+                        
+                    ],
+                    style={ 'padding':'2%'}
+                ),
+                dbc.ModalFooter(
+                    [   dbc.Button("Add New Account", id='create-account', className="ml-auto",color='success', size="sm"),
+                    ]
+                ),
+            ],
+            id="first-time-set-up-modal",
+            size="md",
+            centered=True,
+            is_open=True,
+        )
+    
     def _default_layout(self, content:html) -> html:
         """
         Returns content in the default page structure. All pages will be rendered through this default layout.
@@ -103,6 +163,8 @@ class App(object):
             children=[
                 dcc.Location(id='url', refresh=False),
                 self._get_nav_bar(),
+                dbc.Collapse([self._account_creation_modal()], id="navbar-collapse"),
+                dcc.Store(data=self._account_config, id='memory', storage_type='local'), 
                 html.Div(
                     content,
                     id='page-content',
@@ -116,7 +178,10 @@ class App(object):
 
         self.layouts = {'Home':{'tabs':{}},'Settings':{'tabs':{}}}
 
-        self.layouts['Home']['tabs']['overview'] = self.get_tab_overview_layout(self._A_M._accounts[0])
+        if len(self._A_M._accounts) == 0:
+            self.layouts['Home']['tabs']['overview'] = html.Div("No Accounts Found")
+        else:
+            self.layouts['Home']['tabs']['overview'] = self.get_tab_overview_layout(self._A_M._accounts[0])
         self.layouts['Home']['tabs']['accounts'] = self.get_tab_accounts_layout()
 
     def get_tab_overview_layout(self, selected_account):
@@ -169,12 +234,38 @@ class App(object):
             elif tab == 'accounts':
                 return self.layouts['Home']['tabs']['accounts']
 
-    
+        @dash.callback(
+            Output("first-time-set-up-modal", "is_open"), Output("account_name", "invalid"), Output("account_holder", "invalid"),
+            Input('create-account','n_clicks'),
+            State('account_name','value'),State('account_holder','value'),State('account_type','value'),State('account_provider','value'),State('memory','data'),
+            prevent_initial_call = True
+        )
+        def store_encryption(create_n_clicks,account_name,account_holder,account_type,account_provider,mem):
+            dash.logger.info(mem)
+            if create_n_clicks>0:
+                if None in [account_name,account_holder]:
+                    account_name_invalid = False
+                    account_holder_invalid = False
+                    if not account_name:
+                        account_name_invalid = True
+                    if not account_holder:
+                        account_holder_invalid = True                
+                    return True, account_name_invalid, account_holder_invalid
+                else:
+                    dash.logger.info(self._A_M._accounts)
+                    # self._A_M._add_account()
+                    return False, False, False
+            else:
+                raise PreventUpdate
 
+        # print('Please provide information below')
+        # account_name = self._determine_nickname()
+        # if not account_name: return
 
-
-
-
+        # account_holder = self._determine_user(confirm_user)
+        # if not account_holder: return
+        
+        # return Account(account_holder, account_name)
 
 
 

@@ -133,18 +133,8 @@ class Account(object):
         self._T_M._project_transactions(scheduled_transactions_df=st_df)
 
 class Account_Manager(object):
-    _accounts=[]
-
     def __init__(self, _config={}) -> None:
-
-        if not _config:
-            print('no config found, initializing setup...')
-            account = self._create_account()
-            if not account: 
-                print('setup cancelled')
-                return
-            _config = account._config
-
+        self._accounts=[]
         self._accounts += self._get_accounts_from_config(_config)
         pass
 
