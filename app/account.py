@@ -133,7 +133,8 @@ class Account(object):
         self._T_M._project_transactions(scheduled_transactions_df=st_df)
 
 class Account_Manager(object):
-    def __init__(self, _config={}) -> None:
+    def __init__(self, _config:dict={}, cli_mode:bool=False) -> None:
+        self._cli_mode = cli_mode
         self._accounts=[]
         self._accounts += self._get_accounts_from_config(_config)
         pass
@@ -189,8 +190,9 @@ class Account_Manager(object):
             }
         return summary
 
-    def _determine_nickname(self, confirm_nickname:bool=False) -> None:
-        account_name = input('Account Nickname: ')
+    def _determine_nickname(self, account_name:str='', confirm_nickname:bool=False) -> None:
+        if (not account_name) & self._cli_mode:
+            account_name = input('Account Nickname: ')
         if confirm_nickname:
             while account_name in self._account_nicknames:
                 print(f'That nickname already exist, choose something else (or C to cancel): ')
@@ -219,10 +221,13 @@ class Account_Manager(object):
         for account in self._accounts:
             account._store_transactions_to_drive()
 
-    def _add_account(self) -> None:        
-        self._accounts += [self._create_account(confirm_user=True)]
+    def _add_account(self, account_name:str=None, account_holder:str=None, account_type:str=None, account_provider:str=None) -> None:        
+        self._accounts += [self._create_account(account_name, account_holder, account_type, account_provider, confirm_user=True)]
 
     def _delete_account(self, account:Account=None) -> None:
+        if not self._cli_mode:
+            print('function only supported for CLI_MODE')
+            return 
         if not account:
             account = self._choose_account()
         if account in self._accounts:
@@ -235,21 +240,26 @@ class Account_Manager(object):
                 print(f'account: {account_name} removed.')
 
     def _choose_account(self) -> Account:
+        if not self._cli_mode:
+            print('function only supported for CLI_MODE')
+            return 
         print()
         account = determine_from_ls(self._accounts, string='an account', labels=self._account_nicknames)
         return account
 
-    def _create_account(self, confirm_user:bool=False) -> Account:
-        print('Please provide information below')
-        account_name = self._determine_nickname()
-        if not account_name: return
-
-        account_holder = self._determine_user(confirm_user)
-        if not account_holder: return
-        
-        return Account(account_holder, account_name)
+    def _create_account(self, account_name:str='', account_holder:str='', account_type:str=None, account_provider:str=None, confirm_user:bool=False) -> Account:
+        if self._cli_mode:
+            print('Please provide information below')
+            account_name = self._determine_nickname()
+            if not account_name: return
+            account_holder = self._determine_user(confirm_user)
+            if not account_holder: return        
+        return Account(account_holder, account_name, account_type, account_provider)
     
     def _ammend_account(self, account:Account) -> None:
+        if not self._cli_mode:
+            print('function only supported for CLI_MODE')
+            return 
         if not account:
             account = self._choose_account()
         var = determine_from_ls(['account_holder', 'account_name', 'account_type', 'account_provider'])

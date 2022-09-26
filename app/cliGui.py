@@ -65,14 +65,14 @@ class GUI(object):
     def _load_accounts(self) -> Account_Manager:
         if not self._account_config:
             print('no config found, initializing setup...')
-            A_M = Account_Manager(self._account_config)
+            A_M = Account_Manager(self._account_config, cli_mode=True)
             account = A_M._create_account()
             if not account: 
                 print('setup cancelled')
                 return
             return A_M
         else:
-            return Account_Manager(self._account_config)
+            return Account_Manager(self._account_config, cli_mode=True)
 
     def _add_account(self) -> None:
         self._A_M._add_account()
