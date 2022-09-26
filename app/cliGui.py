@@ -14,6 +14,7 @@ class GUI(object):
         self._account_config = self._determine_config()
 
         self._A_M = self._load_accounts()
+        if not self._A_M: return
 
         self._load_options()
 
@@ -62,7 +63,16 @@ class GUI(object):
         self._create_config(config)
     
     def _load_accounts(self) -> Account_Manager:
-        return Account_Manager(self._account_config)
+        if not self._account_config:
+            print('no config found, initializing setup...')
+            A_M = Account_Manager(self._account_config, cli_mode=True)
+            account = A_M._create_account()
+            if not account: 
+                print('setup cancelled')
+                return
+            return A_M
+        else:
+            return Account_Manager(self._account_config, cli_mode=True)
 
     def _add_account(self) -> None:
         self._A_M._add_account()
