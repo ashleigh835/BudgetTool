@@ -10,7 +10,7 @@ tab_Style = {
 page_layout = html.Div(
     [   #dcc.Store(id='overview-df', storage_type='session',clear_data=True),
         dcc.Tabs(
-            id='db-tab', 
+            id='tab', 
             value='overview', 
             children=[
                 dcc.Tab(label='Overview', value='overview',style=tab_Style,selected_style=tab_Style),
@@ -18,7 +18,7 @@ page_layout = html.Div(
             ],
         ),
         html.Hr(),
-        html.Div(id='db-tab-content')
+        html.Div(id='tab-content')
     ]
 )
 

@@ -3,6 +3,7 @@ from app.account import Account_Manager
 from app.transaction import Transaction
 
 from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
+from app.layouts.transactions import page_layout as t_page, upload_transactions_box, tab_transactions_summary
 
 import dash_bootstrap_components as dbc
 import dash
@@ -10,10 +11,12 @@ from dash import dcc, html, ctx
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-
 import plotly.express as px
 import json
 import os
+import pandas as pd
+import base64
+import io
 
 class App(object):
     def __init__(self) -> None:
@@ -193,15 +196,22 @@ class App(object):
     def _get_layouts(self, initial:bool=True) -> None:
         if initial: self.dash.layout = self._default_layout(h_page)
 
-        self.layouts = {'Home':{'tabs':{}},'Settings':{'tabs':{}}}
-
+        self.layouts = {
+            'Home':{'tabs':{}},'Settings':{'tabs':{}},
+            'Transactions':{'tabs':{}},'Settings':{'tabs':{}},
+        }
         if len(self._A_M._accounts) == 0:
             self.layouts['Home']['tabs']['overview'] = html.Div("No Accounts Found")
+            self.layouts['Transactions']['tabs']['summary'] = html.Div("No Accounts Found")
         else:
             if self._A_M._accounts[0]._T_M._df.empty:
                 self.layouts['Home']['tabs']['overview'] = html.Div("No Transactions Found")
             else:
                 self.layouts['Home']['tabs']['overview'] = self._get_tab_overview_layout(self._A_M._accounts[0])
+                self.layouts['Transactions']['tabs']['summary'] = self._get_tab_transaction_summary_layout()
+            
+            self.layouts['Transactions']['tabs']['summary'] = self._get_tab_transaction_summary_layout()
+                
         self.layouts['Home']['tabs']['accounts'] = self._get_tab_accounts_layout()
 
     def _get_tab_overview_layout(self, selected_account):
@@ -215,7 +225,10 @@ class App(object):
     def _get_tab_accounts_layout(self):
         summary = self._A_M._return_accounts_summary()
         return tab_accounts(summary)
-        
+
+    def _get_tab_transaction_summary_layout(self):
+        return tab_transactions_summary(self._A_M._return_accounts_summary())
+
 
     def callbacks(self, dash:object):
         @dash.callback(Output('page-content', 'children'),[Input('url', 'pathname')])
@@ -233,27 +246,26 @@ class App(object):
             if pathname == '/Home':
                 return h_page
             elif pathname == '/Settings':
-                return html.Div('comingsooon')
+                return html.Div('coming sooon')
+            elif pathname == '/Budgeting':
+                return html.Div('coming sooon')
+            elif pathname == '/Transactions':
+                return t_page
             else:
                 return html.Div(pathname)
 
-        @dash.callback(Output('db-tab-content', 'children'), Input('db-tab', 'value'), Input('memory','data'))
+        @dash.callback(Output('tab-content', 'children'), Input('tab', 'value'), Input('memory','data'))
         def render_content(tab, memory):
-            """
-            Render tab content based on the selected tab
-
-            Args:
-                tab (str): string value associated with the id: db-tab
-
-            Returns:
-                html: html content based on tab selected
-            """    
-            if ctx.triggered_id == 'memory':
+            if (ctx.triggered_id == 'memory') or (not ctx.triggered_id):
                 self._get_layouts()
             if tab == 'overview':
                 return self.layouts['Home']['tabs']['overview']
             elif tab == 'accounts':
                 return self.layouts['Home']['tabs']['accounts']
+            elif tab == 'transactions':
+                # if 'summary' in self.layouts['Transactions']['tabs'].keys():
+                return self.layouts['Transactions']['tabs']['summary']
+            
 
         @dash.callback(
             Output("first-time-set-up-modal", "is_open"), 
@@ -291,6 +303,83 @@ class App(object):
 
             else:
                 raise PreventUpdate
+
+        @dash.callback(
+            Output("transaction-selected-account-detail", "children"),Output('transaction-graph','children'),
+            Input("transaction-selected-account-dropdown", "value"), Input('upload-transactions', 'data')
+        )
+        def render_content_transaction(selected_account_nickname, temp_data):
+            selected_account = self._A_M._determine_account_from_name(selected_account_nickname)
+            data = self._A_M._return_accounts_summary()
+            # style={"height": "2vh"})
+            
+            account_detail = []
+            header = dbc.CardHeader([html.H5(selected_account_nickname)])
+            footer = ""
+            children_sm = []
+            children_big = []
+            for info in data[selected_account_nickname].keys():
+                if info == 'Account Holder':
+                    footer = dbc.CardFooter(html.Small(f"{data[selected_account_nickname][info]}", className="card-text text-muted"))
+                elif info in (['Type','Provider']):
+                    children_sm+=[html.Div(html.Small(f"{info}: {data[selected_account_nickname][info]}", className="card-text text-muted"))]
+                else:
+                    children_big+=[html.Div(f"{info}: {data[selected_account_nickname][info]}", className="card-text")]
+
+            account_detail = [
+                dbc.Row(
+                    dbc.Col(
+                        dbc.Card(
+                            [   header,
+                                dbc.CardBody(children_big + [html.Div(style={'padding':'1%'})] + children_sm),
+                                footer
+                            ],
+                            className='mb-3', # w-50',
+                            # style = {"height": "25vh"}
+                        ),
+                    ),
+                    justify = "center", align = 'center'
+                )
+            ]
+
+            if selected_account._T_M._df.empty:
+                graph = 'No Transactions'
+            else:
+                df = selected_account._T_M._df.copy()
+                df['date'] = df.date.dt.date
+                df['amount'] = df.amount.astype('float64')        
+                ax = df.groupby('date', as_index=False).agg({'balance':'last'})
+                fig = px.area(ax, x = 'date',y = 'balance')#, color="City", barmode="group")
+                graph = dbc.Card(
+                            dcc.Graph(id='example-graph', figure=fig),
+                            className='mb-3',
+                            style={'padding-left':'1%','padding-right':'1%'}
+                        )
+            return html.Div(account_detail), html.Div(graph)
+
+        @dash.callback(
+            Output('upload-transactions', 'data'),
+            Input("transaction-selected-account-dropdown", "value"),
+            Input('upload-transactions', 'contents'),
+            State('upload-transactions', 'filename'),
+            prevent_initial_call = True
+            )
+        def upload_transactions(selected_account_nickname, list_of_contents, list_of_names):
+            selected_account = self._A_M._determine_account_from_name(selected_account_nickname)
+            if list_of_contents and list_of_names:
+                content_type, content_string = list_of_contents.split(',')
+
+                decoded = base64.b64decode(content_string)
+                if ('csv' in list_of_names) | ('CSV' in list_of_names):
+                    df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), index_col=False)
+                    selected_account._T_M._load_transactions_from_df(df)
+                    self._get_layouts()
+                elif 'xls' in list_of_names:
+                    df = pd.read_excel(io.BytesIO(decoded))
+                    self._get_layouts()
+            
+
+
 
     def _check_save(self) -> bool:
         if self._account_config != self._A_M._config: 

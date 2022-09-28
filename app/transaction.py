@@ -62,21 +62,6 @@ class Trasaction_Type_1(Transaction):
 
     def __init__(self, kwargs) -> None:        
         return self._translate(kwargs)
-        
-class Trasaction_Type_2(Transaction):
-    supported_providers = ['Lloyds']
-    mapping = { 
-        'type' : 'Details' ,
-        'date' : 'Posting Date' ,
-        'description' : 'Description' ,
-        'amount' : 'Amount' ,
-        'payment_type' : 'Type' ,
-        'balance' : 'Bal' 
-    }
-    conversion_dict = {}
-
-    def __init__(self, kwargs) -> None:       
-        return self._translate(kwargs)
 
 class Transaction_Manager(object):
     def __init__(self, df:pd.DataFrame()=pd.DataFrame(), hdf_path:str=None, provider:str=None) -> None:
@@ -140,6 +125,15 @@ class Transaction_Manager(object):
                 return
         self._transaction_class_type = self._determine_transaction_style()
         df = pd.read_csv(path, index_col=False)
+        for index, transaction_detail in df.iterrows():
+            transaction = self._transaction_class_type(transaction_detail.to_dict())
+            self._df = pd.concat([self._df, transaction._df_entry], axis=0)
+            self._df.reset_index(drop=True, inplace=True)
+        self._clean_transactions()
+        if write: self._store_transactions_to_drive()
+    
+    def _load_transactions_from_df(self, df, write:bool=True) -> None:
+        self._transaction_class_type = self._determine_transaction_style()
         for index, transaction_detail in df.iterrows():
             transaction = self._transaction_class_type(transaction_detail.to_dict())
             self._df = pd.concat([self._df, transaction._df_entry], axis=0)
