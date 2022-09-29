@@ -1,4 +1,4 @@
-from dash import dcc, html, dash_table
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 
 tab_Style = {
@@ -48,8 +48,7 @@ def tab_transactions_summary(accounts:dict={}):
                     dbc.Col(width=3),
                 ],
                 className='mb-3',
-                style={'padding-left':'1%','padding-right':'1%'}
-                
+                style = {'padding-left':'1%','padding-right':'1%'}                
             ),
             dbc.Row(
                 [   dbc.Col(
@@ -60,7 +59,7 @@ def tab_transactions_summary(accounts:dict={}):
                     dbc.Col(width=3)
                 ],
                 className='mb-3',
-                style={'padding-left':'1%','padding-right':'1%'}            
+                style = {'padding-left':'1%','padding-right':'1%'}           
             ),
             dbc.Row(
                 [   dbc.Col(
@@ -78,11 +77,11 @@ def tab_transactions_summary(accounts:dict={}):
                         width=4
                     )
                 ],
-                style={'padding-left':'1%','padding-right':'1%'}
+                style={'padding-left':'1%','padding-right':'1%','padding-bottom':'1%'}
             ),
-            # dbc.Row(
-            #     [   dash_table.DataTable(df.to_dict('records'), [{"name": i, "id": i} for i in df.columns])],
-            #     style={'padding-left':'1%','padding-right':'1%'}
-            # )
+            dbc.Row(
+                id = 'transaction-data',
+                style = {'padding-left':'1%','padding-right':'1%','padding-bottom':'1%'}
+            )
         ]
     )
