@@ -201,12 +201,12 @@ class App(object):
 
         @dash.callback(
             Output('upload-transactions', 'data'),
-            Input("transaction-selected-account-dropdown", "value"),
             Input('upload-transactions', 'contents'),
             State('upload-transactions', 'filename'),
+            State("transaction-selected-account-dropdown", "value"),
             prevent_initial_call = True
             )
-        def upload_transactions(selected_account_nickname, list_of_contents, list_of_names):
+        def upload_transactions(list_of_contents, list_of_names,selected_account_nickname):
             selected_account = self._A_M._determine_account_from_name(selected_account_nickname)
             if list_of_contents and list_of_names:
                 content_type, content_string = list_of_contents.split(',')
