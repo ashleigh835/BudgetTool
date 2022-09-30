@@ -1,5 +1,8 @@
-from dash import dcc, html
+from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
+import plotly.express as px
+
+from app.account import Account
 
 tab_Style = {
     'padding': '0',
@@ -85,3 +88,39 @@ def tab_transactions_summary(accounts:dict={}):
             )
         ]
     )
+
+def account_visuals(selected_account:Account) -> tuple:
+    if selected_account._T_M._df.empty:
+        graph = 'No Transactions'
+        dta = 'No Transactions'
+    else:
+        df = selected_account._T_M._df.copy()[['amount','type','date','description','payment_type','balance']]
+        df['date'] = df.date.dt.date
+        df['amount'] = df.amount.astype('float64')        
+        ax = df.groupby('date', as_index=False).agg({'balance':'last'})
+        fig = px.area(ax, x = 'date',y = 'balance')#, color="City", barmode="group")
+        graph = dcc.Graph(id='example-graph', figure=fig, className='mb-3')              
+        dta = dash_table.DataTable(
+            data=df.to_dict('records'), 
+            columns=[{"name": i, "id": i} for i in df.columns],
+            style_data={
+                # 'whiteSpace': 'normal',
+                # 'height': 'auto',
+                # 'lineHeight': '15px',
+                'overflow': 'hidden',
+                'textOverflow': 'ellipsis',
+                'maxWidth': 0,
+            },
+            style_cell_conditional=[
+                {'if': {'column_id': 'description'},
+                    'width': '40%',
+                    'textOverflow': 'ellipsis'},
+            ],
+            tooltip_data=[
+                {   column: {'value': str(value), 'type': 'markdown'}
+                    for column, value in row.items()
+                } for row in df.to_dict('records')
+            ],
+            tooltip_duration=None
+        )
+    return graph, dta

@@ -1,13 +1,13 @@
 from app.common.config_info import Config
 from app.account import Account_Manager
-from app.transaction import Transaction
 
 from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
-from app.layouts.transactions import page_layout as t_page, upload_transactions_box, tab_transactions_summary
+from app.layouts.transactions import page_layout as t_page, tab_transactions_summary, account_visuals as transaction_account_visuals
+from app.layouts.common import nav_bar, account_creation_modal, account_card
 
 import dash_bootstrap_components as dbc
 import dash
-from dash import dcc, html, ctx, dash_table
+from dash import dcc, html, ctx
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
@@ -48,123 +48,6 @@ class App(object):
     
     def _run(self) -> None:
         self.dash.run_server(debug=True)
-
-    def _get_nav_bar(self) -> html:
-        nav_drop_down = dbc.DropdownMenu(
-            [   dbc.DropdownMenuItem("Home", href="/Home"),
-                dbc.DropdownMenuItem("Transactions", href="/Transactions"),
-                dbc.DropdownMenuItem("Budgeting", href="/Budgeting"),
-                dbc.DropdownMenuItem(divider=True),
-                dbc.DropdownMenuItem("Settings", href="/Settings"),
-            ],
-            label="Menu",
-            id="menu_drop_down",
-            align_end=True
-        )
-        return dbc.Navbar(
-            [   dbc.Container(
-                    [   html.A(
-                            dbc.Row(
-                                [   dbc.Col(
-                                        [   html.Img(src=self.dash.get_asset_url('IconW.png'), height='50px', style={'padding-left':'1%','padding-top':'0%','padding-bottom':'0%'}),
-                                            dbc.NavbarBrand("Budget Tool",className="ms-2", style={'font-size': 30, 'padding-left':'1%', 'text-align':'left'})
-                                        ],
-                                        width=9
-                                    ),
-                                    dbc.Col(
-                                        dcc.Markdown("""Icons made by [Eucalyp](https://www.flaticon.com/authors/eucalyp) from [Flaticon](https://www.flaticon.com/)""",
-                                        style = {'font-size': 10, 'text-align':'right', 'color':'white','padding-left':'0%'}),
-                                        width=2
-                                    )
-                                ],
-                                align='center'
-                            ),
-                            style={"width":"100%"}
-                        ),
-                        nav_drop_down
-                    ],
-                    fluid=True,
-                )
-            ],
-            color = 'dark',
-            dark=True
-        )
-
-    def _account_creation_modal(self, is_open:bool=False) -> html:
-        if len(self._A_M._users)==0:
-            select_holder = dbc.FormFloating(
-                [   dbc.Input(type="text", id='account_holder', valid=False),
-                    dbc.Label("Account Holder"),
-                    dbc.FormText("Enter the name of the person who holds this account",color="secondary",),
-                    
-                ],
-                className="mb-3"
-            )
-        else:
-            select_holder = dbc.Row(
-                [   dbc.Label("Account Holder", html_for="account_holder", width=4),
-                    dbc.Col(
-                        dbc.RadioItems(
-                            id="account_holder",
-                            options = [{"label": holder, "value": holder} for holder in self._A_M._users],
-                            value=self._A_M._users[0]
-                        ),
-                        width=8,
-                    ),
-                ],
-                className="mb-3",
-                )
-        return dbc.Modal(
-            [   dbc.ModalHeader("Initial Account Set-Up"),
-                dbc.Card(
-                    [   dbc.FormFloating(
-                            [   dbc.Input(type="text", id='account_name'),
-                                dbc.Label("Account Nickname"),
-                                dbc.FormText("Enter a nickname for your account",color="secondary",),
-                                dbc.FormFeedback(id='account_name_feedback', type="invalid")
-                            ],
-                            className="mb-3"
-                        ),
-                        select_holder,
-                        dbc.Row(
-                            [   dbc.Label("Account Type", html_for="account_type", width=4),
-                                dbc.Col(
-                                    dbc.RadioItems(
-                                        id="account_type",
-                                        options = [{"label": account_type, "value": account_type} for account_type in self.settings['account_types']],
-                                        value=self.settings['account_types'][0]
-                                    ),
-                                    width=8,
-                                ),
-                            ],
-                            className="mb-3",
-                        ),
-                        dbc.Row(
-                            [   dbc.Label("Account Provider", html_for="account_provider", width=4),
-                                dbc.Col(
-                                    dbc.RadioItems(
-                                        id="account_provider",
-                                        options = [{"label": account_provider, "value": account_provider} for account_provider in Transaction._supported_providers],
-                                        value=Transaction._supported_providers[0]
-                                    ),
-                                    width=8,
-                                ),
-                            ],
-                            className="mb-3",
-                        )
-                    ],
-                    style={ 'padding':'2%'}
-                ),
-                dbc.ModalFooter(
-                    [   dbc.Button("Add New Account", id='create-account', className="ml-auto",color='success', size="sm"),
-                    ]
-                ),
-            ],
-            id="first-time-set-up-modal",
-            size="md",
-            centered=True,
-            is_open=is_open,
-        )
     
     def _default_layout(self, content:html) -> html:
         """
@@ -182,8 +65,8 @@ class App(object):
         return html.Div(
             children=[
                 dcc.Location(id='url', refresh=False),
-                self._get_nav_bar(),
-                dbc.Collapse([self._account_creation_modal(is_open=collapse)], id="navbar-collapse"),
+                nav_bar(self.dash),
+                dbc.Collapse([account_creation_modal(self,is_open=collapse)], id="navbar-collapse"),
                 dcc.Store(data=self._account_config, id='memory', storage_type='local', clear_data =True), 
                 html.Div(
                     content,
@@ -266,7 +149,6 @@ class App(object):
                 # if 'summary' in self.layouts['Transactions']['tabs'].keys():
                 return self.layouts['Transactions']['tabs']['summary']
             
-
         @dash.callback(
             Output("first-time-set-up-modal", "is_open"), 
             Output("account_name", "invalid"), Output("account_holder", "invalid"), 
@@ -311,72 +193,9 @@ class App(object):
         def render_content_transaction(selected_account_nickname, temp_data):
             selected_account = self._A_M._determine_account_from_name(selected_account_nickname)
             data = self._A_M._return_accounts_summary()
-            # style={"height": "2vh"})
             
-            account_detail = []
-            header = dbc.CardHeader([html.H5(selected_account_nickname)])
-            footer = ""
-            children_sm = []
-            children_big = []
-            for info in data[selected_account_nickname].keys():
-                if info == 'Account Holder':
-                    footer = dbc.CardFooter(html.Small(f"{data[selected_account_nickname][info]}", className="card-text text-muted"))
-                elif info in (['Type','Provider']):
-                    children_sm+=[html.Div(html.Small(f"{info}: {data[selected_account_nickname][info]}", className="card-text text-muted"))]
-                else:
-                    children_big+=[html.Div(f"{info}: {data[selected_account_nickname][info]}", className="card-text")]
-
-            account_detail = [
-                dbc.Row(
-                    dbc.Col(
-                        dbc.Card(
-                            [   header,
-                                dbc.CardBody(children_big + [html.Div(style={'padding':'1%'})] + children_sm),
-                                footer
-                            ],
-                            className='mb-3', # w-50',
-                            # style = {"height": "25vh"}
-                        ),
-                    ),
-                    justify = "center", align = 'center'
-                )
-            ]
-
-            if selected_account._T_M._df.empty:
-                graph = 'No Transactions'
-                dta = 'No Transactions'
-            else:
-                df = selected_account._T_M._df.copy()[['amount','type','date','description','payment_type','balance']]
-                df['date'] = df.date.dt.date
-                df['amount'] = df.amount.astype('float64')        
-                ax = df.groupby('date', as_index=False).agg({'balance':'last'})
-                fig = px.area(ax, x = 'date',y = 'balance')#, color="City", barmode="group")
-                graph = dcc.Graph(id='example-graph', figure=fig, className='mb-3')              
-                dta = dash_table.DataTable(
-                    data=df.to_dict('records'), 
-                    columns=[{"name": i, "id": i} for i in df.columns],
-                    style_data={
-                        # 'whiteSpace': 'normal',
-                        # 'height': 'auto',
-                        # 'lineHeight': '15px',
-                        'overflow': 'hidden',
-                        'textOverflow': 'ellipsis',
-                        'maxWidth': 0,
-                    },
-                    style_cell_conditional=[
-                        {'if': {'column_id': 'description'},
-                            'width': '40%',
-                            'textOverflow': 'ellipsis'},
-                    ],
-                    tooltip_data=[
-                        {
-                            column: {'value': str(value), 'type': 'markdown'}
-                            for column, value in row.items()
-                        } for row in df.to_dict('records')
-                    ],
-                    tooltip_duration=None
-                )
-            
+            account_detail = account_card(selected_account_nickname, data)
+            graph, dta = transaction_account_visuals(selected_account)
             
             return account_detail, graph, dta
 
