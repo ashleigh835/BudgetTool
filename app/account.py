@@ -190,6 +190,10 @@ class Account_Manager(object):
             }
         return summary
 
+    def _determine_account_from_name(self, account_nickname):
+        for account in self._accounts:
+            if account._name == account_nickname: return account
+
     def _determine_nickname(self, account_name:str='', confirm_nickname:bool=False) -> None:
         if (not account_name) & self._cli_mode:
             account_name = input('Account Nickname: ')
