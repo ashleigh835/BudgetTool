@@ -66,6 +66,18 @@ class Account(object):
             temp_scheduled_transactions = Scheduled_Transaction(**scheduled_transaction)
             scheduled_transactions += [temp_scheduled_transactions]
         return scheduled_transactions
+    
+    def get_scheduled_transactions_from_key(self, frequency_type:str, frequency_subtype:str) -> list:
+        return_ls = []
+        for st in self._scheduled_transactions:
+            if frequency_type in st._frequency.keys():
+                if frequency_type == 'monthly':
+                    if frequency_subtype in st._frequency[frequency_type]:
+                        return_ls+=[st]
+                else:
+                    print(f'search by frequency_type: {frequency_type} not currently supported')
+
+        return return_ls
 
     def _determine_account_type(self) -> str :
         return determine_from_ls(self.settings['account_types'], string='a provider')
