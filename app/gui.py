@@ -2,21 +2,18 @@ from app.common.config_info import Config
 from app.account import Account_Manager
 
 from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
-from app.layouts.transactions import page_layout as t_page, tab_transactions_summary, account_visuals as transaction_account_visuals
-from app.layouts.common import nav_bar, account_creation_modal, account_card
+from app.layouts.transactions import page_layout as t_page, tab_transactions_summary, tab_scheduled_transactions, callbacks as transaction_callbacks
+from app.layouts.common import nav_bar, account_creation_modal
 
 import dash_bootstrap_components as dbc
 import dash
-from dash import dcc, html, ctx
+from dash import dcc, html, ctx #, MATCH, ALL
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
 import plotly.express as px
 import json
 import os
-import pandas as pd
-import base64
-import io
 
 class App(object):
     def __init__(self) -> None:
@@ -31,6 +28,7 @@ class App(object):
 
         if self.dash is not None and hasattr(self, 'callbacks'):
             self.callbacks(self.dash)
+            transaction_callbacks(self,dash)
             
         self._run()
         pass
@@ -86,6 +84,7 @@ class App(object):
         if len(self._A_M._accounts) == 0:
             self.layouts['Home']['tabs']['overview'] = html.Div("No Accounts Found")
             self.layouts['Transactions']['tabs']['summary'] = html.Div("No Accounts Found")
+            self.layouts['Transactions']['tabs']['sched'] = html.Div("No Accounts Found")
         else:
             if self._A_M._accounts[0]._T_M._df.empty:
                 self.layouts['Home']['tabs']['overview'] = html.Div("No Transactions Found")
@@ -94,6 +93,7 @@ class App(object):
                 self.layouts['Transactions']['tabs']['summary'] = self._get_tab_transaction_summary_layout()
             
             self.layouts['Transactions']['tabs']['summary'] = self._get_tab_transaction_summary_layout()
+            self.layouts['Transactions']['tabs']['sched'] = self._get_tab_transaction_scheduled_layout()
                 
         self.layouts['Home']['tabs']['accounts'] = self._get_tab_accounts_layout()
 
@@ -111,6 +111,9 @@ class App(object):
 
     def _get_tab_transaction_summary_layout(self):
         return tab_transactions_summary(self._A_M._return_accounts_summary())
+
+    def _get_tab_transaction_scheduled_layout(self):
+        return tab_scheduled_transactions(self._A_M._return_accounts_summary())
 
 
     def callbacks(self, dash:object):
@@ -148,6 +151,8 @@ class App(object):
             elif tab == 'transactions':
                 # if 'summary' in self.layouts['Transactions']['tabs'].keys():
                 return self.layouts['Transactions']['tabs']['summary']
+            elif tab == 'sched transactions':
+                return self.layouts['Transactions']['tabs']['sched']
             
         @dash.callback(
             Output("first-time-set-up-modal", "is_open"), 
@@ -185,43 +190,7 @@ class App(object):
 
             else:
                 raise PreventUpdate
-
-        @dash.callback(
-            Output("transaction-selected-account-detail", "children"),Output('transaction-graph','children'),Output('transaction-data','children'),
-            Input("transaction-selected-account-dropdown", "value"), Input('upload-transactions', 'data')
-        )
-        def render_content_transaction(selected_account_nickname, temp_data):
-            selected_account = self._A_M._determine_account_from_name(selected_account_nickname)
-            data = self._A_M._return_accounts_summary()
-            
-            account_detail = account_card(selected_account_nickname, data)
-            graph, dta = transaction_account_visuals(selected_account)
-            
-            return account_detail, graph, dta
-
-        @dash.callback(
-            Output('upload-transactions', 'data'),
-            Input('upload-transactions', 'contents'),
-            State('upload-transactions', 'filename'),
-            State("transaction-selected-account-dropdown", "value"),
-            prevent_initial_call = True
-            )
-        def upload_transactions(list_of_contents, list_of_names,selected_account_nickname):
-            selected_account = self._A_M._determine_account_from_name(selected_account_nickname)
-            if list_of_contents and list_of_names:
-                content_type, content_string = list_of_contents.split(',')
-
-                decoded = base64.b64decode(content_string)
-                if ('csv' in list_of_names) | ('CSV' in list_of_names):
-                    df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), index_col=False)
-                    selected_account._T_M._load_transactions_from_df(df)
-                    self._get_layouts()
-                elif 'xls' in list_of_names:
-                    df = pd.read_excel(io.BytesIO(decoded))
-                    self._get_layouts()
-            
-
-
+ 
 
     def _check_save(self) -> bool:
         if self._account_config != self._A_M._config: 
