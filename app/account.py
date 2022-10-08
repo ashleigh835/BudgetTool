@@ -59,6 +59,10 @@ class Account(object):
     def _transaction_hdf(self) -> str:
         return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
+    def _determine_scheduled_transaction_from_index(self, index):
+        for st in self._scheduled_transactions:
+            if st._index == index: return st
+
     def get_scheduled_transactions_from_config(self, _config:dict=None) -> list:
         scheduled_transactions = []
         _config = _config or self._scheduled_transaction_config
