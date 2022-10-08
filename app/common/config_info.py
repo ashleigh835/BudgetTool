@@ -4,6 +4,7 @@ class Config:
         self._settings = {
             'account_config' : 'account_config.json',
             'account_types' : ['Checking','Savings','Investments'],
+            'scheduled_transaction_types' : ['DEBIT', 'CREDIT'],
             'upload_folder' : os.getcwd() + os.sep + 'data' + os.sep + 'upload',
             'upload_archive' : os.getcwd() + os.sep + 'data' + os.sep + 'upload_archive',
             'transaction_folder' : os.getcwd() + os.sep + 'data' + os.sep + 'transactions',
