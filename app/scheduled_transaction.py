@@ -1,6 +1,8 @@
 from app.helpers.input_helpers import determine_from_ls, determine_amount, determine_weekday, determine_day_of_month, determine_date, determine_from_range, input_yn
+import itertools
 
 class Scheduled_Transaction(object):
+    _index = itertools.count()
 
     def __init__(self, _summary:str=None, _type:str=None, _amount:float=None, _frequency:dict={}, _description:str=None, new:bool=False) -> None:
         self._summary:str = None
@@ -9,6 +11,7 @@ class Scheduled_Transaction(object):
         self._amount:float = None
         self._frequency:dict = {}
 
+        self._index = next(self._index)
         self._summary = _summary or self._determine_summary()
         if new: 
             self._description = _description or self._determine_description()
