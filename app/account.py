@@ -71,15 +71,14 @@ class Account(object):
             scheduled_transactions += [temp_scheduled_transactions]
         return scheduled_transactions
     
-    def get_scheduled_transactions_from_key(self, frequency_type:str, frequency_subtype:str) -> list:
+    def get_scheduled_transactions_from_key(self, frequency_type:str, frequency_subtype:str=None) -> list:
         return_ls = []
         for st in self._scheduled_transactions:
             if frequency_type in st._frequency.keys():
-                if frequency_type in ['monthly','weekly']:
-                    if frequency_subtype in st._frequency[frequency_type]:
-                        return_ls+=[st]
-                else:
-                    print(f'search by frequency_type: {frequency_type} not currently supported')
+                if not frequency_subtype:
+                    return_ls+=[st]
+                elif frequency_subtype in st._frequency[frequency_type]:
+                    return_ls+=[st]
 
         return return_ls
 
