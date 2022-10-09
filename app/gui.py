@@ -24,6 +24,7 @@ class App(object):
 
         self.dash = self._initialize()
         self.dash.title = 'Budget Tool'
+        # self.dash.config.suppress_callback_exceptions = True
         self._get_layouts()
 
         if self.dash is not None and hasattr(self, 'callbacks'):
@@ -65,7 +66,7 @@ class App(object):
                 dcc.Location(id='url', refresh=False),
                 nav_bar(self.dash),
                 dbc.Collapse([account_creation_modal(self,is_open=collapse)], id="navbar-collapse"),
-                dcc.Store(data=self._account_config, id='memory', storage_type='local', clear_data =True), 
+                dcc.Store(data=self._account_config, id='memory', storage_type='session', clear_data =True), 
                 html.Div(
                     content,
                     id='page-content',

@@ -59,6 +59,10 @@ class Account(object):
     def _transaction_hdf(self) -> str:
         return f"{self.settings['transaction_folder']}{os.sep}{self._holder}_{self._name}_transactions.h5"
 
+    def _remove_scheduled_transaction(self,scheduled_transaction:object) -> None:
+        if scheduled_transaction in self._scheduled_transactions:
+            self._scheduled_transactions.remove(scheduled_transaction)
+
     def _determine_scheduled_transaction_from_index(self, index):
         for st in self._scheduled_transactions:
             if st._index == index: return st

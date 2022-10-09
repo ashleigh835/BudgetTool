@@ -138,8 +138,8 @@ scheduled_transaction_subfrequency_selection={
 
 ammend_schedule_transaction_modal = dbc.Modal(
     [   dbc.ModalHeader("Ammend Scheduled Transaction"),
-        dcc.Store(storage_type='local', id='ammend-scheduled-transaction-index'),
-        dcc.Store(storage_type='local', id='ammend-scheduled-transaction-account'),
+        dcc.Store(storage_type='session', clear_data=True, id='ammend-scheduled-transaction-index'),
+        dcc.Store(storage_type='session', clear_data=True, id='ammend-scheduled-transaction-account'),
         dbc.Card(
             [   dbc.FormFloating(
                     [   dbc.Input(type="text", id='ammend-scheduled-transaction-nickname'),
@@ -190,7 +190,6 @@ ammend_schedule_transaction_modal = dbc.Modal(
                                 'Add frequency',
                                 id='ammend-scheduled-transaction-add-frequency',
                                 size="sm",
-                                # className="ml-auto w-50",
                                 className="ml-auto w-50 ",
                                 color='primary',
                             ),
@@ -204,11 +203,10 @@ ammend_schedule_transaction_modal = dbc.Modal(
                         ],
                         width=12,
                         className = "d-flex align-items-center justify-content-center"
-                        # className = "d-flex justify-content-center"
                     ),
                 ),
                 html.Div(
-                    [   dcc.Store(id='scheduled-transaction-sub-freq', storage_type='local', clear_data =True),
+                    [   dcc.Store(id='scheduled-transaction-sub-freq', storage_type='session', clear_data=True),
                         dbc.Row(
                             [   html.Hr(),
                                 dbc.Label("Frequency", html_for="ammend-scheduled-transaction-frequency-radio", width=3),
@@ -260,7 +258,8 @@ ammend_schedule_transaction_modal = dbc.Modal(
             style={ 'padding':'2%'}
         ),
         dbc.ModalFooter(
-            [   dbc.Button("Save Changes", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm"),
+            [   dbc.Button("Delete Scheduled Transaction", id='btn-wipe-scheduled-transaction', className="ml-auto",color='danger', size="sm", outline=True),
+                dbc.Button("Save Changes", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm", outline=True),
             ]
         ),        
         dbc.Toast(
@@ -285,6 +284,15 @@ ammend_schedule_transaction_modal = dbc.Modal(
             [html.P("Frequency staged to be removed! Save to permanaently update", className="mb-0")],
             id="remove-freq-toast",
             header="Frequency Removed",
+            duration=3000,
+            is_open=False, 
+            icon='danger',
+            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
+        ),     
+        dbc.Toast(
+            [html.P("Scheduled transaction permanently removed!", className="mb-0")],
+            id="remove-st-toast",
+            header="Scheduled Transaction Removed",
             duration=3000,
             is_open=False, 
             icon='danger',
@@ -338,6 +346,41 @@ def tab_transactions_summary(accounts:dict={}) -> html:
             dbc.Row(
                 id = 'transaction-data',
                 style = {'padding-left':'1%','padding-right':'1%','padding-bottom':'1%'}
+            )
+        ]
+    )
+
+def tab_scheduled_transactions(accounts:dict={}) ->html:
+    monthly_body = build_freq_all_cards('monthly', list(range(1, 32))+['End'])
+    weekly_body = build_freq_all_cards('weekly', range(1, 8))
+    daily_body = build_freq_all_cards('daily', ['Daily'])
+
+    return html.Div(
+        [   ammend_schedule_transaction_modal,
+            dbc.Row(
+                [   dbc.Col(width=3),
+                    dbc.Col(
+                        dcc.Dropdown([account for account in accounts.keys()], list(accounts.keys())[0], id='sched-transaction-selected-account-dropdown'),
+                        className='mb-3',
+                        width=6
+                    ),
+                    dbc.Col(width=3),
+                ],
+                className='mb-3',
+                style = {'padding-left':'1%','padding-right':'1%'}                
+            ),
+            dbc.Accordion(
+                [   dbc.AccordionItem([dbc.CardBody(monthly_body)], title="Monthly"),
+                    dbc.AccordionItem([dbc.CardBody(weekly_body)], title="Weekly"),
+                    dbc.AccordionItem([dbc.CardBody(daily_body)], title="Daily"),
+                    dbc.AccordionItem([], title="One-Off", id='one-off-body')
+                ],
+                className='mb-3',
+                style = {'padding-left':'1%','padding-right':'1%'} ,
+                # start_collapsed=True,
+                flush=True,
+                always_open=True 
+                
             )
         ]
     )
@@ -450,41 +493,6 @@ def build_freq_cards(freq:str, ls:list, top:bool=True, hidden_card_lim:int=None)
         ) for i in range(0,hidden_card_lim)]
     
     return dbc.Row(cards+hidden_cards, class_name='text-center', style = style,)
-
-def tab_scheduled_transactions(accounts:dict={}) ->html:
-    monthly_body = build_freq_all_cards('monthly', list(range(1, 32))+['End'])
-    weekly_body = build_freq_all_cards('weekly', range(1, 8))
-    daily_body = build_freq_all_cards('daily', ['Daily'])
-
-    return html.Div(
-        [   ammend_schedule_transaction_modal,
-            dbc.Row(
-                [   dbc.Col(width=3),
-                    dbc.Col(
-                        dcc.Dropdown([account for account in accounts.keys()], list(accounts.keys())[0], id='sched-transaction-selected-account-dropdown'),
-                        className='mb-3',
-                        width=6
-                    ),
-                    dbc.Col(width=3),
-                ],
-                className='mb-3',
-                style = {'padding-left':'1%','padding-right':'1%'}                
-            ),
-            dbc.Accordion(
-                [   dbc.AccordionItem([dbc.CardBody(monthly_body)], title="Monthly"),
-                    dbc.AccordionItem([dbc.CardBody(weekly_body)], title="Weekly"),
-                    dbc.AccordionItem([dbc.CardBody(daily_body)], title="Daily"),
-                    dbc.AccordionItem([], title="One-Off", id='one-off-body')
-                ],
-                className='mb-3',
-                style = {'padding-left':'1%','padding-right':'1%'} ,
-                # start_collapsed=True,
-                flush=True,
-                always_open=True 
-                
-            )
-        ]
-    )
 
 def account_visual_graph(selected_account:Account) -> object:
     if selected_account._T_M._df.empty:
@@ -702,8 +710,6 @@ def callbacks(gui, dash:object):
         footer = footer or []
         card_amt = 0
 
-        print(id)
-
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
             if st._type == 'DEBIT':
@@ -863,7 +869,7 @@ def callbacks(gui, dash:object):
         State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def remove_sub_frequency(n, st_index, selected_account_nickname):
+    def load_remove_sub_frequency_options(n, st_index, selected_account_nickname):
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
         options = []
@@ -882,11 +888,11 @@ def callbacks(gui, dash:object):
         State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def add_sub_frequency(n, sub_freq_rule_ls, st_index, selected_account_nickname): 
-        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
+    def remove_sub_frequency(n, sub_freq_rule_ls, st_index, selected_account_nickname): 
         if n != 0:
             if sub_freq_rule_ls:
+                selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
                 for sub_freq_rule in sub_freq_rule_ls:
                     freq = sub_freq_rule.split('_')[0]
                     sub_freq = sub_freq_rule.split('_')[1]
@@ -939,6 +945,26 @@ def callbacks(gui, dash:object):
                 print('Nothing to Save')    
 
         raise PreventUpdate
+
+    @dash.callback(
+        Output('remove-st-toast','is_open'),
+        Input('btn-wipe-scheduled-transaction','n_clicks'),
+        State('ammend-scheduled-transaction-index','data'),
+        State('ammend-scheduled-transaction-account','data'),
+        prevent_initial_call=True
+    )
+    def delete_scheduled_transaction(n, st_index, selected_account_nickname):
+        if n != 0:
+            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
+            selected_account._remove_scheduled_transaction(scheduled_transaction)
+            
+            if gui._check_save(): 
+                gui._save() 
+                return True
+        
+        raise PreventUpdate
+
 
         #     #    graph = dcc.Graph(id='transaction-graph', figure=fig, className='mb-3')        
         # @dash.callback(
