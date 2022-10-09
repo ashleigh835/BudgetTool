@@ -75,7 +75,7 @@ class Account(object):
         return_ls = []
         for st in self._scheduled_transactions:
             if frequency_type in st._frequency.keys():
-                if frequency_type == 'monthly':
+                if frequency_type in ['monthly','weekly']:
                     if frequency_subtype in st._frequency[frequency_type]:
                         return_ls+=[st]
                 else:
