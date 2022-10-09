@@ -56,6 +56,7 @@ scheduled_transaction_frequencies_dict = {
         'sub-description':'Date transaction will occur',
     },
 }
+
 scheduled_transaction_types_ls = Config().settings()['scheduled_transaction_types']
 
 upload_transactions_box = dcc.Upload(
@@ -73,8 +74,71 @@ upload_transactions_box = dcc.Upload(
     },
 )
 
-schedule_transaction_edit_modal = dbc.Modal(
+scheduled_transaction_subfrequency_selection={
+    'monthly' : html.Div(
+        [   html.Small("Day:"),
+            dbc.RadioItems(
+                id="ammend-scheduled-transaction-subfrequency-type-radio",
+                inline=True,
+                options = [
+                    {'label':'1-31','value':'1-31'},
+                    {'label':'End','value':'End'},
+                ],
+                value = '1-31'
+            ),
+            html.Div(
+                [   dbc.Input(type="number", min=1, max=31, step=1, size='sm', className="mb-3", id='ammend-scheduled-transaction-subfrequency-type-monthly-days-input'),
+                    dbc.Tooltip(
+                        scheduled_transaction_frequencies_dict['monthly']['sub-description'],
+                        target="ammend-scheduled-transaction-subfrequency-type-monthly-days-input",
+                    )
+                ],
+                id='ammend-scheduled-transaction-subfrequency-type-monthly', style={'display':'none'},
+            )   
+        ],
+        id='ammend-scheduled-transaction-subfrequency-monthly',
+        style={'display':'none'}
+    ),
+    'weekly' : html.Div(
+        [   dcc.Dropdown(
+                [ wkd for wkd in weekdays()],
+                id="ammend-scheduled-transaction-subfrequency-type-dropdown",
+                placeholder='Weekday',
+                searchable=False, 
+                optionHeight=20
+            ),
+            dbc.Tooltip(
+                scheduled_transaction_frequencies_dict['weekly']['sub-description'],
+                target="ammend-scheduled-transaction-subfrequency-type-dropdown",
+            ),
+        ],
+        id='ammend-scheduled-transaction-subfrequency-weekly',
+        style={'display':'none'}
+    ),
+    'daily' : html.Div(id='ammend-scheduled-transaction-subfrequency-daily',style={'display':'none'}),
+    'one-off' : html.Div(
+        [   dbc.Row(
+                [   dcc.DatePickerSingle(
+                        id='ammend-scheduled-transaction-subfrequency-type-date-picker',
+                        min_date_allowed=date.today()+timedelta(days=1),
+                        initial_visible_month=date.today()+timedelta(days=1),
+                    ),
+                    dbc.Tooltip(
+                        scheduled_transaction_frequencies_dict['one-off']['sub-description'],
+                        target="ammend-scheduled-transaction-subfrequency-type-date-picker",
+                    ),
+                ]
+            )
+        ],
+        id='ammend-scheduled-transaction-subfrequency-one-off',
+        style={'display':'none'}
+    )
+}
+
+ammend_schedule_transaction_modal = dbc.Modal(
     [   dbc.ModalHeader("Ammend Scheduled Transaction"),
+        dcc.Store(storage_type='local', id='ammend-scheduled-transaction-index'),
+        dcc.Store(storage_type='local', id='ammend-scheduled-transaction-account'),
         dbc.Card(
             [   dbc.FormFloating(
                     [   dbc.Input(type="text", id='ammend-scheduled-transaction-nickname'),
@@ -111,11 +175,6 @@ schedule_transaction_edit_modal = dbc.Modal(
                     className="mb-3",
                 ),
                 dbc.Accordion(
-                    # [   dbc.AccordionItem([dbc.CardBody('monthly_body')], title="Monthly"),
-                    #     dbc.AccordionItem(title="Weekly"),
-                    #     dbc.AccordionItem(title="Daily"),
-                    #     dbc.AccordionItem(title="One-Off")
-                    # ],
                     id='ammend-scheduled-transaction-accordian',
                     className='mb-3',
                     style = {'padding-left':'1%','padding-right':'1%'} ,
@@ -139,8 +198,7 @@ schedule_transaction_edit_modal = dbc.Modal(
                     ),
                 ),
                 html.Div(
-                    [   dcc.Store(id='scheduled-transaction-sub-freq', storage_type='local', clear_data =True), 
-                        dbc.Row(id='temp1'),
+                    [   dcc.Store(id='scheduled-transaction-sub-freq', storage_type='local', clear_data =True),
                         dbc.Row(
                             [   html.Hr(),
                                 dbc.Label("Frequency", html_for="ammend-scheduled-transaction-frequency-radio", width=3),
@@ -153,26 +211,49 @@ schedule_transaction_edit_modal = dbc.Modal(
                                     width=3,
                                 ),
                                 dbc.Col(
-                                    id='ammend-scheduled-transaction-subfrequency',
                                     width=6,
-                                )
+                                    children = [
+                                        scheduled_transaction_subfrequency_selection['monthly'],
+                                        scheduled_transaction_subfrequency_selection['weekly'],
+                                        scheduled_transaction_subfrequency_selection['daily'],
+                                        scheduled_transaction_subfrequency_selection['one-off']
+                                    ],
+                                    className="mb-3",
+                                    style={"height": "5vh"}
+                                ),
                             ],
-                            className="mb-3"
+                            style={'padding':'2%'}
                         ),
                         dbc.Row(dbc.Button('Add', color='success', id='btn-add-scheduled-transaction-subfrequency'))
                     ],
                     style={'display':'none'},
                     id='ammend-scheduled-transaction-frequency'
                 )
-                # DON:T ALLOW TO CONTINUE IF NO FREQUENCIES ARE ADDED
-
             ],
             style={ 'padding':'2%'}
         ),
         dbc.ModalFooter(
-            [   dbc.Button("Save", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm"),
+            [   dbc.Button("Save Changes", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm"),
             ]
-        ),
+        ),        
+        dbc.Toast(
+            [html.P("Scheduled transaction updated!", className="mb-0")],
+            id="save-toast",
+            header="Changes Saved",
+            duration=3000,
+            is_open=False,
+            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
+            icon='success'
+        ),     
+        dbc.Toast(
+            [html.P("Scheduled transaction updated!", className="mb-0")],
+            id="add-freq-toast",
+            header="Changes Saved",
+            duration=3000,
+            is_open=False, 
+            icon='success',
+            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
+        )
     ],
     id="edit-scheduled-transaction-modal",
     size="md",
@@ -231,13 +312,13 @@ def build_scheduled_transaction_modal_frequency(scheduled_transaction:object) ->
         if freq in scheduled_transaction._frequency.keys():
             grand_children=[]
             for sub_freq in scheduled_transaction._frequency[freq]:
-                if freq == 'monhtly':
+                if freq == 'monthly':
                     grand_children+=[
                         dbc.CardBody(monthly_readable(sub_freq)),
                     ]
                 else:
                     grand_children+=[
-                        dbc.CardBody(monthly_readable(sub_freq)),
+                        dbc.CardBody(sub_freq),
                     ]
             
             children+=[dbc.AccordionItem(grand_children, title=scheduled_transaction_frequencies_dict[freq]['title'])]
@@ -324,7 +405,7 @@ def tab_scheduled_transactions(accounts:dict={}) ->html:
     ]
 
     return html.Div(
-        [   schedule_transaction_edit_modal,
+        [   ammend_schedule_transaction_modal,
             dbc.Row(
                 [   dbc.Col(width=3),
                     dbc.Col(
@@ -459,10 +540,14 @@ def callbacks(gui, dash:object):
         if not children:
             return children, footer, {'display': 'none'}
         else: 
-            return [
-                html.Div(html.Span(children), style={'display':'flex','flex-direction':'column','min-height':'10vh'}),
-                html.Div(className="wrapper",style={'flex':1})
-            ],footer, footer_style
+            return (
+                [
+                    html.Div(html.Span(children), style={'display':'flex','flex-direction':'column','min-height':'10vh'}),
+                    html.Div(className="wrapper",style={'flex':1})
+                ],
+                footer,
+                footer_style
+            )
 
     @dash.callback(
         Output({'type': 'weekly_scheduled_transaction_item','index': MATCH}, 'children'),
@@ -474,7 +559,7 @@ def callbacks(gui, dash:object):
     )
     def render_content_scheduled_transaction_weekly(selected_account_nickname,id,footer):
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-        st_list = selected_account.get_scheduled_transactions_from_key('weekly',id['index'])
+        st_list = selected_account.get_scheduled_transactions_from_key('weekly',weekdays()[int(id['index'])-1])
         children = []
         footer = footer or []
         card_amt = 0
@@ -505,7 +590,8 @@ def callbacks(gui, dash:object):
         Output('ammend-scheduled-transaction-amount','value'),
         Output('ammend-scheduled-transaction-type','value'),
         Output('ammend-scheduled-transaction-accordian','children'),
-        # Output('ammend-scheduled_transaction_frequency','value'),
+        Output('ammend-scheduled-transaction-index','data'),
+        Output('ammend-scheduled-transaction-account','data'),
         Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
         State("sched-transaction-selected-account-dropdown", "value"), 
         prevent_initial_call = True
@@ -522,7 +608,9 @@ def callbacks(gui, dash:object):
                 [scheduled_transaction._description], 
                 [scheduled_transaction._amount], 
                 scheduled_transaction._type, 
-                acc
+                acc,
+                indx,
+                selected_account_nickname
             )
         else:
             raise PreventUpdate
@@ -540,106 +628,87 @@ def callbacks(gui, dash:object):
             return {'display':'none'}, 'primary', 'Add frequency'
         else:
             return {'padding':'2%'}, 'secondary', 'Hide'
-
+    
     @dash.callback(
-        Output('ammend-scheduled-transaction-subfrequency','children'),
-        Input('ammend-scheduled-transaction-frequency-radio','value')
+        Output('ammend-scheduled-transaction-subfrequency-monthly','style'),  
+        Output('ammend-scheduled-transaction-subfrequency-type-monthly','style')  ,
+        Output('ammend-scheduled-transaction-subfrequency-weekly','style'),  
+        Output('ammend-scheduled-transaction-subfrequency-daily','style'),
+        Output('ammend-scheduled-transaction-subfrequency-one-off','style'),
+        Input('ammend-scheduled-transaction-frequency-radio','value'),
+        Input('ammend-scheduled-transaction-subfrequency-type-radio','value')
     )
-    def render_sub_frequencies(freq):
+    def render_frequency_subtype(freq, sub_freq_type):
         if freq == 'monthly':
-            return dbc.Row(
-                [   html.Small("Day:"),
-                    dbc.RadioItems(
-                        id="ammend-scheduled-transaction-subfrequency-type-radio",
-                        inline=True,
-                        options = [
-                            {'label':'1-31','value':'1-31'},
-                            {'label':'End','value':'End'},
-                        ],
-                        value = '1-31'
-                    ),
-                    html.Div(id='ammend-scheduled-transaction-subfrequency-type', style={'padding':'2%'})
-                ]
-            )
-        elif freq == 'weekly':
-            return dbc.Row(
-                [   dcc.Dropdown(
-                        [ wkd for wkd in weekdays()],
-                        id="ammend-scheduled-transaction-subfrequency-type-dropdown",
-                        placeholder='Weekday',
-                        searchable=False, 
-                        optionHeight=20
-                    ),
-                    dbc.Tooltip(
-                        scheduled_transaction_frequencies_dict[freq]['sub-description'],
-                        target="ammend-scheduled-transaction-subfrequency-type-dropdown",
-                    ),
-                ]
-            )
+            if sub_freq_type == '1-31':
+                return None, None, {'display':'none'}, {'display':'none'}, {'display':'none'}
+            elif sub_freq_type == 'End':
+                return None, {'display':'none'}, {'display':'none'}, {'display':'none'}, {'display':'none'}
+
+        elif freq == 'weekly':            
+            return {'display':'none'}, {'display':'none'}, None, {'display':'none'}, {'display':'none'}
+        
         elif freq == 'daily':
-            return None
+            return {'display':'none'}, {'display':'none'}, {'display':'none'}, None, {'display':'none'}
+        
         elif freq == 'one-off':
-            return dbc.Row(
-                [   dcc.DatePickerSingle(
-                        id='my-date-picker-single',
-                        min_date_allowed=date.today()+timedelta(days=1),
-                        initial_visible_month=date.today()+timedelta(days=1),
-                    ),
-                    dbc.Tooltip(
-                        scheduled_transaction_frequencies_dict[freq]['sub-description'],
-                        target="my-date-picker-single",
-                    ),
-                ]
-            )
-
-    @dash.callback(
-        Output('ammend-scheduled-transaction-subfrequency-type','children'),
-        Input('ammend-scheduled-transaction-subfrequency-type-radio','value'),
-        State('ammend-scheduled-transaction-frequency-radio','value')
-    )
-    def render_sub_frequencies_selection(sub_freq_type, freq):
-        if sub_freq_type == '1-31': 
-            return [
-                dbc.Input(type="number", min=1, max=31, step=1, size='sm', className="mb-3", id='ammend-scheduled-transaction-subfrequency-type-input'),
-                dbc.Tooltip(
-                    scheduled_transaction_frequencies_dict[freq]['sub-description'],
-                    target="ammend-scheduled-transaction-subfrequency-type-input",
-                ),
-            ]
-
+            return {'display':'none'}, {'display':'none'}, {'display':'none'}, {'display':'none'}, None
+            
     @dash.callback(
         Output('scheduled-transaction-sub-freq','data'),
-        Output('temp1','children'),
-        Input('ammend-scheduled-transaction-subfrequency-type-input','value'),
+        Input('ammend-scheduled-transaction-frequency-radio','value'),
         Input('ammend-scheduled-transaction-subfrequency-type-radio','value'),
+        Input('ammend-scheduled-transaction-subfrequency-type-monthly-days-input','value'),
+        Input('ammend-scheduled-transaction-subfrequency-type-dropdown','value'),
+        Input('ammend-scheduled-transaction-subfrequency-type-date-picker','date'),
         prevent_initial_call=True
     )
-    # ammend-scheduled-transaction-subfrequency-type-input
-    def store_subfreq(subf,rad):
-        print('-'*50)
-        print(subf)
-        print(ctx.triggered_id)
-        out= [None]
-        if ctx.triggered_id == 'ammend-scheduled-transaction-subfrequency-type-input':
-            out = [subf]
-        elif ctx.triggered_id == 'ammend-scheduled-transaction-subfrequency-type-radio':
-            out = [rad]
-        return out*2
-
+    def store_subfreq(freq, sub_freq_type, monthly_freq_days, weekly_freq, one_off_date):
+        if freq == 'monthly':
+            if sub_freq_type == '1-31':
+                return str(monthly_freq_days)
+            elif sub_freq_type == 'End':
+                return 'End'
+        elif freq == 'weekly':            
+            return weekly_freq        
+        elif freq == 'daily':
+            return 'daily'        
+        elif freq == 'one-off':
+            return one_off_date
 
     @dash.callback(
-        Output('btn-add-scheduled-transaction-subfrequency','children'),
+        Output('add-freq-toast','is_open'),
         Input('btn-add-scheduled-transaction-subfrequency','n_clicks'),
+        State('ammend-scheduled-transaction-frequency-radio','value'),
         State('scheduled-transaction-sub-freq','data'),
+        State('ammend-scheduled-transaction-index','data'),
+        State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def add_sub_frequency(n,subfreq):  
-        print('-+-'*15)
-        print(n)
-        print(ctx.triggered_id)
+    def add_sub_frequency(n, freq, sub_freq, st_index, selected_account_nickname):  
+        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
         if n != 0:
-            print(subfreq)
-            return subfreq
+            if sub_freq:
+                scheduled_transaction._update_frequency(freq, sub_freq)
+                return True
+        
+        raise PreventUpdate
+
+    @dash.callback(
+        Output('save-toast','is_open'),
+        Input('btn-ammend-scheduled-transaction','n_clicks'),
+        prevent_initial_call=True
+    )
+    def save_scheduled_transaction_changes(n):
+        if n!=0:
+            if gui._check_save(): 
+                gui._save() 
+                return True
+            else:
+                print('Nothing to Save')    
+        raise PreventUpdate
+
         #     #    graph = dcc.Graph(id='transaction-graph', figure=fig, className='mb-3')        
         # @dash.callback(
         #     Output('hoverid', 'children'),

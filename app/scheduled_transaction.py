@@ -24,7 +24,13 @@ class Scheduled_Transaction(object):
 
     @property
     def _config(self):
-        return self.__dict__
+        return {
+            '_summary' : self._summary,
+            '_description' : self._description,
+            '_type' : self._type,
+            '_amount' : self._amount,
+            '_frequency' :self._frequency
+        }
 
     def _determine_summary(self):
         print('in as few words as possible, what is the nickname for this transaction?')
@@ -75,4 +81,5 @@ class Scheduled_Transaction(object):
         if _frequency not in self._frequency.keys():        
             self._frequency[_frequency] = [_frequency_timing]
         else:
-            self._frequency[_frequency]+=[_frequency_timing]
+            if _frequency_timing not in self._frequency[_frequency]:
+                self._frequency[_frequency]+=[_frequency_timing]
