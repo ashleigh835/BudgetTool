@@ -193,9 +193,9 @@ class App(object):
  
 
     def _check_save(self) -> bool:
-        if self._account_config != self._A_M._config: 
+        if self._determine_config() != self._A_M._config: 
             print('***'*20)
-            print(self._account_config)
+            print(self._determine_config())
             print('---'*20)
             print(self._A_M._config)
             print('***'*20)
