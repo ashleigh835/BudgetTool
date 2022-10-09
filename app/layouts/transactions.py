@@ -369,6 +369,12 @@ def tab_scheduled_transactions(accounts:dict={}) ->html:
                 className='mb-3',
                 style = {'padding-left':'1%','padding-right':'1%'}                
             ),
+            dbc.Row(
+                [   dbc.Col(width=5),
+                    dbc.Col(dbc.Button('Add Scheduled Transaction',id='sched-transaction-add-new', className='ml-auto w-100 ', size='sm'),width=2, className='justify-content-center mb-3 d-flex'),
+                    dbc.Col(width=5),
+                ]
+            ),
             dbc.Accordion(
                 [   dbc.AccordionItem([dbc.CardBody(monthly_body)], title="Monthly"),
                     dbc.AccordionItem([dbc.CardBody(weekly_body)], title="Weekly"),
@@ -743,33 +749,57 @@ def callbacks(gui, dash:object):
         Output('ammend-scheduled-transaction-account','data'),
         Output('ammend-scheduled-transaction-remove-frequency','style'),
         Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
+        Input('sched-transaction-add-new','n_clicks'),
         State("sched-transaction-selected-account-dropdown", "value"), 
         prevent_initial_call = True
     )
-    def manage_scheduled_transaction(n,selected_account_nickname):
-        if n != [0]*len(n):
-            indx =int(ctx.triggered_id['index'].split('_')[1])
-            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(indx)
+    def manage_scheduled_transaction(manage_n,add_new_n,selected_account_nickname):
+        #Title: Ammend vs Add
+        #btn: Save Changes vs Save
+        #can't add frequency rules until all fields have been added
+        print(ctx.triggered_id)
+        if ctx.triggered_id == 'sched-transaction-add-new':
+            if add_new_n !=0 :
+                print(add_new_n)
+                # selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+                # scheduled_transaction = selected_account._create_scheduled_transaction()
+                return (
+                    True,
+                    None, 
+                    None, 
+                    None,
+                    'DEBIT',
+                    None,
+                    None, # will need to carry this somehow maybe?
+                    selected_account_nickname,
+                    {'display':'none'}
+                )
 
-            style = None
-            if not scheduled_transaction._frequency:
-                style={'display':'none'}
-
-            acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
-            return (
-                True, 
-                [scheduled_transaction._summary], 
-                [scheduled_transaction._description], 
-                [scheduled_transaction._amount], 
-                scheduled_transaction._type, 
-                acc,
-                indx,
-                selected_account_nickname,
-                style
-            )
         else:
-            raise PreventUpdate
+            if manage_n != [0]*len(manage_n):
+                
+                indx =int(ctx.triggered_id['index'].split('_')[1])
+                selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(indx)
+
+                style = None
+                if not scheduled_transaction._frequency:
+                    style={'display':'none'}
+
+                acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
+                return (
+                    True, 
+                    [scheduled_transaction._summary], 
+                    [scheduled_transaction._description], 
+                    [scheduled_transaction._amount], 
+                    scheduled_transaction._type, 
+                    acc,
+                    indx,
+                    selected_account_nickname,
+                    style
+                )
+            else:
+                raise PreventUpdate
 
     @dash.callback(
         Output('ammend-scheduled-transaction-frequency','style'),
