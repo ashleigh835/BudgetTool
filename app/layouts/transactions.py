@@ -240,7 +240,18 @@ ammend_schedule_transaction_modal = dbc.Modal(
                     id='ammend-scheduled-transaction-frequency'
                 ),
                 html.Div(
-                    [   'REMOVE'
+                    [   dbc.Row(
+                            [   html.Hr(),
+                                dcc.Dropdown(
+                                    id='ammend-scheduled-transaction-frequency-remove-dropdown', 
+                                    multi=True, 
+                                    searchable=False,
+                                    placeholder="Choose a frequency rule to remove"
+                                ),
+                            ],
+                            style={'padding':'2%'}
+                        ),
+                        dbc.Row(dbc.Button('Remove', color='danger', id='btn-remove-scheduled-transaction-subfrequency'))
                     ],
                     style={'display':'none'},
                     id='remove-scheduled-transaction-frequency'
@@ -739,27 +750,87 @@ def callbacks(gui, dash:object):
         raise PreventUpdate
 
     @dash.callback(
-        Output('remove-freq-toast','is_open'),
+        Output('ammend-scheduled-transaction-frequency-remove-dropdown','options'),
         Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+        State('ammend-scheduled-transaction-index','data'),
+        State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def remove_sub_frequency(n):
-        if n!=0:
-            return True
+    def remove_sub_frequency(n, st_index, selected_account_nickname):
+        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
+        options = []
+        for freq in scheduled_transaction._frequency.keys():
+            options += [{'label': freq, 'value': freq,'disabled': True}]
+            for sub_freq in scheduled_transaction._frequency[freq]:
+                options += [{'label':sub_freq, 'value':f'{freq}_{sub_freq}'}]
 
+        return options
+    
+    @dash.callback(
+        Output('remove-freq-toast','is_open'),
+        Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),
+        State('ammend-scheduled-transaction-frequency-remove-dropdown','value'),
+        State('ammend-scheduled-transaction-index','data'),
+        State('ammend-scheduled-transaction-account','data'),
+        prevent_initial_call=True
+    )
+    def add_sub_frequency(n, sub_freq_rule_ls, st_index, selected_account_nickname): 
+        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
+        if n != 0:
+            if sub_freq_rule_ls:
+                for sub_freq_rule in sub_freq_rule_ls:
+                    freq = sub_freq_rule.split('_')[0]
+                    sub_freq = sub_freq_rule.split('_')[1]
+                    scheduled_transaction._remove_frequency(freq,sub_freq)
+                return True
+        
+        raise PreventUpdate
 
     @dash.callback(
         Output('save-toast','is_open'),
         Input('btn-ammend-scheduled-transaction','n_clicks'),
+        State('ammend-scheduled-transaction-nickname','value'),
+        State('ammend-scheduled-transaction-description','value'),
+        State('ammend-scheduled-transaction-amount','value'),
+        State('ammend-scheduled-transaction-type','value'),
+        State('ammend-scheduled-transaction-index','data'),
+        State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def save_scheduled_transaction_changes(n):
+    def save_scheduled_transaction_changes(n, nickname, description, amount, st_type, st_index, selected_account_nickname):
         if n!=0:
+            def clean(val:object):
+                if type(val) == list:
+                    return val[0]
+                else:
+                    return val
+
+            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
+            if clean(nickname) != scheduled_transaction._summary:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._summary}] -> [{nickname}]')
+                scheduled_transaction._summary = clean(nickname)
+
+            if clean(description) != scheduled_transaction._description:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._description}] -> [{description}]')
+                scheduled_transaction._description = clean(description)
+
+            if clean(amount) != scheduled_transaction._amount:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._amount}] -> [{amount}]')
+                scheduled_transaction._amount = clean(amount)
+
+            if clean(st_type)!= scheduled_transaction._type:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._type}] -> [{st_type}]')
+                scheduled_transaction._type = clean(st_type)
+
             if gui._check_save(): 
                 gui._save() 
                 return True
             else:
                 print('Nothing to Save')    
+
         raise PreventUpdate
 
         #     #    graph = dcc.Graph(id='transaction-graph', figure=fig, className='mb-3')        

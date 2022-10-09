@@ -83,3 +83,10 @@ class Scheduled_Transaction(object):
         else:
             if _frequency_timing not in self._frequency[_frequency]:
                 self._frequency[_frequency]+=[_frequency_timing]
+    
+    def _remove_frequency(self, _frequency:str, _frequency_timing:object) -> None:
+        if _frequency in self._frequency.keys():
+            if _frequency_timing in self._frequency[_frequency]:
+                self._frequency[_frequency].remove(_frequency_timing)
+                if not self._frequency[_frequency]:
+                    del self._frequency[_frequency]
