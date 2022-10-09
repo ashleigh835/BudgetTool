@@ -394,6 +394,29 @@ def build_scheduled_transaction_badge(scheduled_transaction:object, card_id:int=
         )
     ]
 
+def build_freq_all_cards(freq:str, card_ls:list ):
+    children = []
+    floor=1
+    ceiling=len(card_ls)
+    hidden_cards = None
+    if ceiling == 1:
+        return build_freq_cards(freq, card_ls, top=False, hidden_card_lim=6)
+
+    for i in range(floor,ceiling,7):
+        lower = i 
+        uppr = i+7
+        top = True
+
+        if i == floor:
+            top=False
+        if i+7 > ceiling+1:
+            uppr=ceiling+1
+            hidden_cards = 7- len(card_ls[lower-1:uppr-1])
+
+        children += [build_freq_cards(freq, card_ls[lower-1:uppr-1], top=top, hidden_card_lim=hidden_cards)]
+
+    return children
+
 def build_freq_cards(freq:str, ls:list, top:bool=True, hidden_card_lim:int=None) -> html:
     style={}
     if top:
@@ -401,7 +424,7 @@ def build_freq_cards(freq:str, ls:list, top:bool=True, hidden_card_lim:int=None)
     
     cards = []
     for i in ls:
-        if freq == 'monthly':
+        if freq in ['monthly','daily','one-off']:
             head = i
         elif freq == 'weekly':
             head = weekdays()[i-1]
@@ -429,16 +452,9 @@ def build_freq_cards(freq:str, ls:list, top:bool=True, hidden_card_lim:int=None)
     return dbc.Row(cards+hidden_cards, class_name='text-center', style = style,)
 
 def tab_scheduled_transactions(accounts:dict={}) ->html:
-    monthly_body = [   
-        build_freq_cards('monthly', range(1,8), top=False),
-        build_freq_cards('monthly', range(8,15)),
-        build_freq_cards('monthly', range(15,22)),
-        build_freq_cards('monthly', range(22,29)),
-        build_freq_cards('monthly', list(range(29,32))+['End'],hidden_card_lim=3),
-    ]
-    weekly_body = [   
-        build_freq_cards('weekly', range(1,8), top=False),
-    ]
+    monthly_body = build_freq_all_cards('monthly', list(range(1, 32))+['End'])
+    weekly_body = build_freq_all_cards('weekly', range(1, 8))
+    daily_body = build_freq_all_cards('daily', ['Daily'])
 
     return html.Div(
         [   ammend_schedule_transaction_modal,
@@ -457,8 +473,8 @@ def tab_scheduled_transactions(accounts:dict={}) ->html:
             dbc.Accordion(
                 [   dbc.AccordionItem([dbc.CardBody(monthly_body)], title="Monthly"),
                     dbc.AccordionItem([dbc.CardBody(weekly_body)], title="Weekly"),
-                    dbc.AccordionItem(['test'], title="Daily"),
-                    dbc.AccordionItem(['test'], title="One-Off")
+                    dbc.AccordionItem([dbc.CardBody(daily_body)], title="Daily"),
+                    dbc.AccordionItem([], title="One-Off", id='one-off-body')
                 ],
                 className='mb-3',
                 style = {'padding-left':'1%','padding-right':'1%'} ,
@@ -614,10 +630,101 @@ def callbacks(gui, dash:object):
         if not children:
             return children, footer, {'display': 'none'}
         else: 
-            return [
-                html.Div(html.Span(children), style={'display':'flex','flex-direction':'column','min-height':'10vh'}),
-                html.Div(className="wrapper",style={'flex':1})
-            ],footer, footer_style
+            return (
+                [   html.Div(html.Span(children), style={'display':'flex','flex-direction':'column','min-height':'10vh'}),
+                    html.Div(className="wrapper",style={'flex':1})
+                ],
+                footer,
+                footer_style
+            )
+
+    @dash.callback(
+        Output({'type': 'daily_scheduled_transaction_item','index': MATCH}, 'children'),
+        Output({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'children'),
+        Output({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'style'),
+        Input("sched-transaction-selected-account-dropdown", "value"), 
+        State({'type': 'daily_scheduled_transaction_item','index': MATCH}, 'id'),
+        State({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'children')
+    )
+    def render_content_scheduled_transaction_daily(selected_account_nickname,id,footer):
+        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+        st_list = selected_account.get_scheduled_transactions_from_key('daily')
+        children = []
+        footer = footer or []
+        card_amt = 0
+
+        for st in st_list:
+            children += build_scheduled_transaction_badge(st, id['index'])
+            if st._type == 'DEBIT':
+                card_amt+=st._amount*-1
+            elif st._type == 'CREDIT':
+                card_amt+=st._amount                
+        
+        if len(children)>0: 
+            temp_footer, footer_style = currency_readable_styled(card_amt)
+            footer = [html.B(temp_footer)]
+
+        if not children:
+            return children, footer, {'display': 'none'}
+        else: 
+            return (
+                [   html.Div(html.Span(children), style={'display':'flex','flex-direction':'column','min-height':'10vh'}),
+                    html.Div(className="wrapper",style={'flex':1})
+                ],
+                footer, 
+                footer_style
+            )
+
+    @dash.callback(
+        Output('one-off-body', 'children'),
+        Input("sched-transaction-selected-account-dropdown", "value"), 
+    )
+    def render_content_scheduled_transaction_one_off_cards(selected_account_nickname):
+        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+        st_list = selected_account.get_scheduled_transactions_from_key('one-off')
+        date_ls = []
+        for st in st_list:
+            date_ls += st._frequency['one-off']
+        return build_freq_all_cards('one-off', date_ls)
+
+    @dash.callback(
+        Output({'type': 'one-off_scheduled_transaction_item','index': MATCH}, 'children'),
+        Output({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'children'),
+        Output({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'style'),
+        Input("sched-transaction-selected-account-dropdown", "value"), 
+        State({'type': 'one-off_scheduled_transaction_item','index': MATCH}, 'id'),
+        State({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'children')
+    )
+    def render_content_scheduled_transaction_one_off_card_content(selected_account_nickname,id,footer):
+        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+        st_list = selected_account.get_scheduled_transactions_from_key('one-off',id['index'])
+        children = []
+        footer = footer or []
+        card_amt = 0
+
+        print(id)
+
+        for st in st_list:
+            children += build_scheduled_transaction_badge(st, id['index'])
+            if st._type == 'DEBIT':
+                card_amt+=st._amount*-1
+            elif st._type == 'CREDIT':
+                card_amt+=st._amount                
+        
+        if len(children)>0: 
+            temp_footer, footer_style = currency_readable_styled(card_amt)
+            footer = [html.B(temp_footer)]
+
+        if not children:
+            return children, footer, {'display': 'none'}
+        else: 
+            return (
+                [   html.Div(html.Span(children), style={'display':'flex','flex-direction':'column','min-height':'10vh'}),
+                    html.Div(className="wrapper",style={'flex':1})
+                ],
+                footer, 
+                footer_style
+            )
 
     @dash.callback(
         Output('edit-scheduled-transaction-modal','is_open'),
