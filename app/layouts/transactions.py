@@ -23,7 +23,8 @@ tab_Style = {
 page_layout = html.Div(
     [   dcc.Tabs(
             id='tab', 
-            value='transactions', 
+            # value='transactions',
+            value='sched transactions' ,
             children=[
                 dcc.Tab(label='Transactions', value='transactions',style=tab_Style,selected_style=tab_Style),
                 dcc.Tab(label='Scheduled Transactions', value='sched transactions',style=tab_Style,selected_style=tab_Style),
@@ -185,13 +186,22 @@ ammend_schedule_transaction_modal = dbc.Modal(
                 ),
                 dbc.Row(
                     dbc.Col(
-                        dbc.Button(
-                            'Add frequency',
-                            id='ammend-scheduled-transaction-add-frequency',
-                            size="sm",
-                            className="ml-auto ",
-                            color='primary'
-                        ),
+                        [   dbc.Button(
+                                'Add frequency',
+                                id='ammend-scheduled-transaction-add-frequency',
+                                size="sm",
+                                # className="ml-auto w-50",
+                                className="ml-auto w-50 ",
+                                color='primary',
+                            ),
+                            dbc.Button(
+                                'Remove frequency',
+                                id='ammend-scheduled-transaction-remove-frequency',
+                                size="sm",
+                                color='danger',
+                                className="ml-auto w-50",
+                            )
+                        ],
                         width=12,
                         className = "d-flex align-items-center justify-content-center"
                         # className = "d-flex justify-content-center"
@@ -228,6 +238,12 @@ ammend_schedule_transaction_modal = dbc.Modal(
                     ],
                     style={'display':'none'},
                     id='ammend-scheduled-transaction-frequency'
+                ),
+                html.Div(
+                    [   'REMOVE'
+                    ],
+                    style={'display':'none'},
+                    id='remove-scheduled-transaction-frequency'
                 )
             ],
             style={ 'padding':'2%'}
@@ -246,12 +262,21 @@ ammend_schedule_transaction_modal = dbc.Modal(
             icon='success'
         ),     
         dbc.Toast(
-            [html.P("Scheduled transaction updated!", className="mb-0")],
+            [html.P("Frequency added to scheduled transaction staged changes! Save to permanaently update", className="mb-0")],
             id="add-freq-toast",
-            header="Changes Saved",
+            header="Frequency Added",
             duration=3000,
             is_open=False, 
             icon='success',
+            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
+        ),     
+        dbc.Toast(
+            [html.P("Frequency staged to be removed! Save to permanaently update", className="mb-0")],
+            id="remove-freq-toast",
+            header="Frequency Removed",
+            duration=3000,
+            is_open=False, 
+            icon='danger',
             style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
         )
     ],
@@ -592,6 +617,7 @@ def callbacks(gui, dash:object):
         Output('ammend-scheduled-transaction-accordian','children'),
         Output('ammend-scheduled-transaction-index','data'),
         Output('ammend-scheduled-transaction-account','data'),
+        Output('ammend-scheduled-transaction-remove-frequency','style'),
         Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
         State("sched-transaction-selected-account-dropdown", "value"), 
         prevent_initial_call = True
@@ -601,6 +627,11 @@ def callbacks(gui, dash:object):
             indx =int(ctx.triggered_id['index'].split('_')[1])
             selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
             scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(indx)
+
+            style = None
+            if not scheduled_transaction._frequency:
+                style={'display':'none'}
+
             acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
             return (
                 True, 
@@ -610,7 +641,8 @@ def callbacks(gui, dash:object):
                 scheduled_transaction._type, 
                 acc,
                 indx,
-                selected_account_nickname
+                selected_account_nickname,
+                style
             )
         else:
             raise PreventUpdate
@@ -618,16 +650,27 @@ def callbacks(gui, dash:object):
     @dash.callback(
         Output('ammend-scheduled-transaction-frequency','style'),
         Output('ammend-scheduled-transaction-add-frequency','color'),
-        Output('ammend-scheduled-transaction-add-frequency','children'),
-        Input('ammend-scheduled-transaction-add-frequency','n_clicks'), 
-        State('ammend-scheduled-transaction-add-frequency','children'),        
+        Output('ammend-scheduled-transaction-add-frequency','children'),        
+        Output('remove-scheduled-transaction-frequency','style'),
+        Output('ammend-scheduled-transaction-remove-frequency','color'),
+        Output('ammend-scheduled-transaction-remove-frequency','children'),
+        Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
+        Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+        State('ammend-scheduled-transaction-add-frequency','children'), 
+        State('ammend-scheduled-transaction-remove-frequency','children'),        
         prevent_initial_call = True
     )
-    def render_frequencies(n,btn_str):
-        if btn_str == 'Hide':
-            return {'display':'none'}, 'primary', 'Add frequency'
-        else:
-            return {'padding':'2%'}, 'secondary', 'Hide'
+    def render_frequencies(add_n,rem_n,add_btn_str,rem_btn_str):
+        if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
+            if add_btn_str == 'Hide':
+                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency'
+            else:
+                return {'padding':'2%'}, 'secondary', 'Hide', {'display':'none'}, 'danger', 'Remove frequency'
+        elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
+            if rem_btn_str == 'Hide':
+                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency'
+            else:
+                return {'display':'none'}, 'primary', 'Add frequency', {'padding':'2%'}, 'secondary', 'Hide'
     
     @dash.callback(
         Output('ammend-scheduled-transaction-subfrequency-monthly','style'),  
@@ -694,6 +737,16 @@ def callbacks(gui, dash:object):
                 return True
         
         raise PreventUpdate
+
+    @dash.callback(
+        Output('remove-freq-toast','is_open'),
+        Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+        prevent_initial_call=True
+    )
+    def remove_sub_frequency(n):
+        if n!=0:
+            return True
+
 
     @dash.callback(
         Output('save-toast','is_open'),
