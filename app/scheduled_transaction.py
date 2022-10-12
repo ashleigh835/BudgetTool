@@ -4,7 +4,7 @@ import itertools
 class Scheduled_Transaction(object):
     _index = itertools.count()
 
-    def __init__(self, _summary:str=None, _type:str=None, _amount:float=None, _frequency:dict={}, _description:str=None, new:bool=False) -> None:
+    def __init__(self, _summary:str=None, _type:str=None, _amount:float=None, _frequency:dict={}, _description:str=None, new:bool=False, cli_mode:bool=False) -> None:
         self._summary:str = None
         self._description:str = None
         self._type:str = None
@@ -12,14 +12,26 @@ class Scheduled_Transaction(object):
         self._frequency:dict = {}
 
         self._index = next(self._index)
-        self._summary = _summary or self._determine_summary()
-        if new: 
+
+        self._summary = _summary
+        if (not self._summary) and (cli_mode):
+            self._summary = self._determine_summary()
+
+        self._description = _description
+        if new and cli_mode: 
             self._description = _description or self._determine_description()
-        else:
-            self._description = _description
-        self._type = _type or self._determine_scheduled_transaction_type()
-        self._amount = _amount or self._determine_amount()
-        self._frequency = _frequency or self._determine_frequency()
+            
+        self._type = _type 
+        if (not self._type) and (cli_mode):
+            self._type = self._determine_scheduled_transaction_type()
+
+        self._amount = _amount 
+        if (not self._amount) and (cli_mode):
+            self._amount = self._determine_amount()
+            
+        self._frequency = _frequency 
+        if (not self._frequency) and (cli_mode):
+            self._frequency = self._determine_frequency()
         pass
 
     @property

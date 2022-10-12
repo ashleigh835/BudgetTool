@@ -47,6 +47,7 @@ class App(object):
     
     def _run(self) -> None:
         self.dash.run_server(debug=True)
+        # self.dash.run_server(debug=True, dev_tools_hot_reload=False)
     
     def _default_layout(self, content:html) -> html:
         """

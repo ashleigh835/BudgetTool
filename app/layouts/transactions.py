@@ -757,6 +757,8 @@ def callbacks(gui, dash:object):
         #Title: Ammend vs Add
         #btn: Save Changes vs Save
         #can't add frequency rules until all fields have been added
+
+        # input Output('remove-st-toast','is_open'), -> close modal
         print(ctx.triggered_id)
         if ctx.triggered_id == 'sched-transaction-add-new':
             if add_new_n !=0 :
@@ -787,6 +789,7 @@ def callbacks(gui, dash:object):
                     style={'display':'none'}
 
                 acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
+                print(scheduled_transaction)
                 return (
                     True, 
                     [scheduled_transaction._summary], 
@@ -808,23 +811,45 @@ def callbacks(gui, dash:object):
         Output('remove-scheduled-transaction-frequency','style'),
         Output('ammend-scheduled-transaction-remove-frequency','color'),
         Output('ammend-scheduled-transaction-remove-frequency','children'),
+        Output('ammend-scheduled-transaction-nickname','invalid'),
+        Output('ammend-scheduled-transaction-amount','invalid'),
         Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
         Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
         State('ammend-scheduled-transaction-add-frequency','children'), 
-        State('ammend-scheduled-transaction-remove-frequency','children'),        
+        State('ammend-scheduled-transaction-remove-frequency','children'),
+        State('ammend-scheduled-transaction-nickname','value'),
+        State('ammend-scheduled-transaction-amount','value'),
+        State('ammend-scheduled-transaction-index','data'),
+        State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call = True
     )
-    def render_frequencies(add_n,rem_n,add_btn_str,rem_btn_str):
+    def render_frequencies(add_n,rem_n,add_btn_str,rem_btn_str, nickname, amount, st_index, selected_account_nickname):
+        amt_invalid=False
+        sum_invalid=False
+        if (not nickname):sum_invalid=True
+        if (not amount):amt_invalid=True
+
         if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
             if add_btn_str == 'Hide':
-                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency'
+                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
             else:
-                return {'padding':'2%'}, 'secondary', 'Hide', {'display':'none'}, 'danger', 'Remove frequency'
+                if amt_invalid | sum_invalid:
+                    return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
+                else:
+                    if not st_index:
+                        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
+                        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
+                        if not scheduled_transaction:
+                            print(f'adding scheduled transaction')
+                            selected_account._create_scheduled_transaction(t_summary=nickname, t_amount=amount)
+                            # Need to store the index to be able to update...
+
+                    return {'padding':'2%'}, 'secondary', 'Hide', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
         elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
             if rem_btn_str == 'Hide':
-                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency'
+                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
             else:
-                return {'display':'none'}, 'primary', 'Add frequency', {'padding':'2%'}, 'secondary', 'Hide'
+                return {'display':'none'}, 'primary', 'Add frequency', {'padding':'2%'}, 'secondary', 'Hide', sum_invalid, amt_invalid
     
     @dash.callback(
         Output('ammend-scheduled-transaction-subfrequency-monthly','style'),  

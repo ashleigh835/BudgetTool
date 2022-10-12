@@ -1,6 +1,5 @@
 from app.cliGui import GUI
 from app.gui import App
-from app.helpers.input_helpers import determine_from_ls
 
 # opt = determine_from_ls(['cli','dash'],labels=['command-line-gui','dash-gui'])
 

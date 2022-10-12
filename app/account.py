@@ -12,11 +12,12 @@ import pandas as pd
 import numpy as np
 
 class Account(object):
-    def __init__(self, account_holder:str, account_name:str, account_type:str=None, account_provider:str=None, scheduled_transactions:list=[]) -> None:
+    def __init__(self, account_holder:str, account_name:str, account_type:str=None, account_provider:str=None, scheduled_transactions:list=[], cli_mode:bool=False) -> None:
         self._holder = None
         self._name = None
         # self._type = None
         # self._provider = None
+        self._cli_mode = cli_mode
 
         self._scheduled_transactions = []
 
@@ -115,7 +116,7 @@ class Account(object):
         self._scheduled_transactions += [self._get_scheduled_transaction_from_user()]
     
     def _create_scheduled_transaction(self, t_summary:str=None, t_type:str=None, t_amount:float=None, t_freq:str=None, t_desc:str=None, new:bool=True) -> Scheduled_Transaction:
-        return Scheduled_Transaction(t_summary, t_type, t_amount, t_freq, t_desc, new)
+        return Scheduled_Transaction(t_summary, t_type, t_amount, t_freq, t_desc, new, self._cli_mode)
 
     def _get_scheduled_transaction_from_user(self) -> Scheduled_Transaction:     
         return self._create_scheduled_transaction(new=True)
@@ -193,7 +194,7 @@ class Account_Manager(object):
         _config = _config or self._config
         for _holder in _config.keys():
             for account_config in _config[_holder]:
-                account = Account(_holder, **account_config)
+                account = Account(_holder, **account_config, cli_mode=self._cli_mode)
                 accounts += [account]
         return accounts
 
