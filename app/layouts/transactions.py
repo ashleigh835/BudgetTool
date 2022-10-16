@@ -273,15 +273,6 @@ ammend_schedule_transaction_modal = dbc.Modal(
             icon='success'
         ),   
         dbc.Toast(
-            [html.P("Frequency staged to be removed! Save to permanaently update", className="mb-0")],
-            id="remove-freq-toast",
-            header="Frequency Removed",
-            duration=3000,
-            is_open=False, 
-            icon='danger',
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
-        ),     
-        dbc.Toast(
             [html.P("Scheduled transaction permanently removed!", className="mb-0")],
             id="remove-st-toast",
             header="Scheduled Transaction Removed",
@@ -782,7 +773,8 @@ def callbacks(gui, dash:object):
                 'remove' : Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
             },
             "sub_freq_buttons" : {
-                'add': Input('btn-add-scheduled-transaction-subfrequency','n_clicks'),       
+                'add': Input('btn-add-scheduled-transaction-subfrequency','n_clicks'), 
+                'remove':Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),      
             },
             'states' : {
                 'account': {
@@ -795,7 +787,8 @@ def callbacks(gui, dash:object):
                     'amount' : State('ammend-scheduled-transaction-amount','value'),
                 },
                 'sub_freq': {
-                    'interval' : State('ammend-scheduled-transaction-frequency-radio','value')
+                    'interval' : State('ammend-scheduled-transaction-frequency-radio','value'),
+                    'sub_freq_ls' : State('ammend-scheduled-transaction-frequency-remove-dropdown','value'),
                 },
                 'data' : {
                     'index' : State('ammend-scheduled-transaction-index','data'),
@@ -1013,9 +1006,9 @@ def callbacks(gui, dash:object):
                     }
         
         elif c.sub_freq_buttons.add.triggered:
-            selected_account = gui._A_M._determine_account_from_name(states.account.name)
-            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
-            if states.data.sub_freq:
+            if states.data.sub_freq: 
+                selected_account = gui._A_M._determine_account_from_name(states.account.name)
+                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
                 scheduled_transaction._update_frequency(states.sub_freq.interval, states.data.sub_freq)
                 acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
                 return {
@@ -1035,7 +1028,47 @@ def callbacks(gui, dash:object):
                     'data' : { 'index': no_update, 'account': no_update }
                 }
             raise PreventUpdate
+        
+        elif c.sub_freq_buttons.remove.triggered:
+            if states.sub_freq.sub_freq_ls:
+                selected_account = gui._A_M._determine_account_from_name(states.account.name)
+                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+                for sub_freq in states.sub_freq.sub_freq_ls:
+                    freq = sub_freq.split('_')[0]
+                    sub_freq = sub_freq.split('_')[1]
+                    scheduled_transaction._remove_frequency(freq,sub_freq)
 
+                rem_div = no_update
+                rem_btn = {
+                    'style':content_defaults['freq']['rem_btn']['style'],
+                    'str':no_update, 
+                    'color':no_update
+                }
+                if not scheduled_transaction._frequency:
+                    rem_div={'display':'none'}
+                    rem_btn={
+                        'style':{'display':'none'},
+                        'str':no_update, 
+                        'color':no_update
+                    }
+                acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
+                return {
+                    'open_states' : {'modal' : True},
+                    'modal_content' : {
+                        'nickname' : {'value':no_update,'invalid':no_update},
+                        'description' : no_update,
+                        'amount' : {'value':no_update,'invalid':no_update},
+                        'type' : no_update,
+                        'freq' : {
+                            'accordian' :  acc,
+                            'div' : {'remove':rem_div,'add':no_update},
+                            'add_btn' : {'str':no_update,'color':no_update},
+                            'rem_btn' : rem_btn,
+                        }
+                    },
+                    'data' : { 'index': no_update, 'account': no_update }
+                }
+            raise PreventUpdate
 
         else:
             raise PreventUpdate
@@ -1090,11 +1123,13 @@ def callbacks(gui, dash:object):
     @dash.callback(
         Output('ammend-scheduled-transaction-frequency-remove-dropdown','options'),
         Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+        Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),
         State('ammend-scheduled-transaction-index','data'),
         State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def load_remove_sub_frequency_options(n, st_index, selected_account_nickname):
+    def load_remove_sub_frequency_options(n,n2, st_index, selected_account_nickname):
+        print('reloading options')
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
         options = []
@@ -1105,27 +1140,6 @@ def callbacks(gui, dash:object):
 
         return options
     
-    @dash.callback(
-        Output('remove-freq-toast','is_open'),
-        Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),
-        State('ammend-scheduled-transaction-frequency-remove-dropdown','value'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def remove_sub_frequency(n, sub_freq_rule_ls, st_index, selected_account_nickname): 
-        if n != 0:
-            if sub_freq_rule_ls:
-                selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-                for sub_freq_rule in sub_freq_rule_ls:
-                    freq = sub_freq_rule.split('_')[0]
-                    sub_freq = sub_freq_rule.split('_')[1]
-                    scheduled_transaction._remove_frequency(freq,sub_freq)
-                return True
-        
-        raise PreventUpdate
-
     @dash.callback(
         Output('save-toast','is_open'),
         Input('btn-ammend-scheduled-transaction','n_clicks'),
