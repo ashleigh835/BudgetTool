@@ -271,16 +271,7 @@ ammend_schedule_transaction_modal = dbc.Modal(
             is_open=False,
             style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
             icon='success'
-        ),     
-        dbc.Toast(
-            [html.P("Frequency added to scheduled transaction staged changes! Save to permanaently update", className="mb-0")],
-            id="add-freq-toast",
-            header="Frequency Added",
-            duration=3000,
-            is_open=False, 
-            icon='success',
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
-        ),     
+        ),   
         dbc.Toast(
             [html.P("Frequency staged to be removed! Save to permanaently update", className="mb-0")],
             id="remove-freq-toast",
@@ -790,6 +781,9 @@ def callbacks(gui, dash:object):
                 'add': Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
                 'remove' : Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
             },
+            "sub_freq_buttons" : {
+                'add': Input('btn-add-scheduled-transaction-subfrequency','n_clicks'),       
+            },
             'states' : {
                 'account': {
                     'name': State("sched-transaction-selected-account-dropdown", "value")
@@ -800,15 +794,19 @@ def callbacks(gui, dash:object):
                     'nickname' : State('ammend-scheduled-transaction-nickname','value'),
                     'amount' : State('ammend-scheduled-transaction-amount','value'),
                 },
+                'sub_freq': {
+                    'interval' : State('ammend-scheduled-transaction-frequency-radio','value')
+                },
                 'data' : {
                     'index' : State('ammend-scheduled-transaction-index','data'),
                     # 'account' : State('ammend-scheduled-transaction-account','data'),
+                    'sub_freq' : State('scheduled-transaction-sub-freq','data')
                 }
             }
         },
         prevent_initial_call = True
     )
-    def scheduled_transaction_modal(activate_buttons,freq_buttons,states):
+    def scheduled_transaction_modal(activate_buttons,freq_buttons,sub_freq_buttons,states):
         #Title: Ammend vs Add
         #btn: Save Changes vs Save
         #can't add frequency rules until all fields have been added
@@ -900,7 +898,6 @@ def callbacks(gui, dash:object):
             }
 
         elif c.freq_buttons.add.triggered or c.freq_buttons.remove.triggered:
-            print(f'business time: {ctx.triggered_id}')
             if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
                 if states.freq.add_btn_str == 'Hide':
                     return {
@@ -950,6 +947,7 @@ def callbacks(gui, dash:object):
                             scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
                             if not scheduled_transaction:
                                 scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=states.freq.amount)
+                                selected_account._add_scheduled_transaction(scheduled_transaction)
                                 indx = scheduled_transaction._index
                         return {
                             'open_states' : {'modal': True},
@@ -1004,15 +1002,41 @@ def callbacks(gui, dash:object):
                             'freq' : {
                                 'accordian':no_update,
                                 'div' : {
-                                    'remove' : {'display':'none'},
-                                    'add' : {'padding':'2%'}
+                                    'remove' : {'padding':'2%'},
+                                    'add' : {'display':'none'}
                                 },
                                 'add_btn' : content_defaults['freq']['add_btn'],
-                                'rem_btn' : {'style':content_defaults['freq']['rem_btn'].style,'str':'Hide','color':'secondary'}
+                                'rem_btn' : {'style':content_defaults['freq']['rem_btn']['style'],'str':'Hide','color':'secondary'}
                             }
                         },
                         'data' : {'index':no_update,'account':no_update}
                     }
+        
+        elif c.sub_freq_buttons.add.triggered:
+            selected_account = gui._A_M._determine_account_from_name(states.account.name)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+            if states.data.sub_freq:
+                scheduled_transaction._update_frequency(states.sub_freq.interval, states.data.sub_freq)
+                acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
+                return {
+                    'open_states' : {'modal' : True},
+                    'modal_content' : {
+                        'nickname' : {'value':no_update,'invalid':no_update},
+                        'description' : no_update,
+                        'amount' : {'value':no_update,'invalid':no_update},
+                        'type' : no_update,
+                        'freq' : {
+                            'accordian' :  acc,
+                            'div' : {'remove':no_update,'add':no_update},
+                            'add_btn' : {'str':no_update,'color':no_update},
+                            'rem_btn' : content_defaults['freq']['rem_btn'],
+                        }
+                    },
+                    'data' : { 'index': no_update, 'account': no_update }
+                }
+            raise PreventUpdate
+
+
         else:
             raise PreventUpdate
 
@@ -1062,25 +1086,6 @@ def callbacks(gui, dash:object):
             return 'daily'        
         elif freq == 'one-off':
             return one_off_date
-
-    @dash.callback(
-        Output('add-freq-toast','is_open'),
-        Input('btn-add-scheduled-transaction-subfrequency','n_clicks'),
-        State('ammend-scheduled-transaction-frequency-radio','value'),
-        State('scheduled-transaction-sub-freq','data'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def add_sub_frequency(n, freq, sub_freq, st_index, selected_account_nickname):  
-        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-        if n != 0:
-            if sub_freq:
-                scheduled_transaction._update_frequency(freq, sub_freq)
-                return True
-        
-        raise PreventUpdate
 
     @dash.callback(
         Output('ammend-scheduled-transaction-frequency-remove-dropdown','options'),
