@@ -4,7 +4,8 @@ from app.helpers.date_helpers import weekdays
 from app.helpers.readable_helpers import currency_readable_styled, currency_readable_styled, monthly_readable
 from app.layouts.common import account_card
 
-from dash import dcc, html, dash_table, ctx, MATCH, ALL
+# import dash
+from dash import dcc, html, dash_table, ctx, MATCH, ALL, no_update
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from datetime import date, timedelta
@@ -748,59 +749,122 @@ def callbacks(gui, dash:object):
         output={
             'open_states' : {'modal' : Output('edit-scheduled-transaction-modal','is_open')},
             'modal_content' : {
-                'nickname' : Output('ammend-scheduled-transaction-nickname','value'),
+                'nickname' : {
+                    'value' : Output('ammend-scheduled-transaction-nickname','value'),
+                    'invalid' : Output('ammend-scheduled-transaction-nickname','invalid'),
+                },
                 'description' : Output('ammend-scheduled-transaction-description','value'),
-                'amount' : Output('ammend-scheduled-transaction-amount','value'),
+                'amount' : {
+                    'value' : Output('ammend-scheduled-transaction-amount','value'),
+                    'invalid' : Output('ammend-scheduled-transaction-amount','invalid'),
+                },
                 'type' : Output('ammend-scheduled-transaction-type','value'),
-                'freq_accordian' : Output('ammend-scheduled-transaction-accordian','children'),
+                'freq' : {
+                    'accordian' : Output('ammend-scheduled-transaction-accordian','children'),
+                    'div': {
+                        'remove' : Output('remove-scheduled-transaction-frequency','style'),
+                        'add' : Output('ammend-scheduled-transaction-frequency','style'),                    
+                    },
+                    'add_btn' : {
+                        'str': Output('ammend-scheduled-transaction-add-frequency','children'),
+                        'color': Output('ammend-scheduled-transaction-add-frequency','color'),
+                    },
+                    'rem_btn' : {
+                        'style' : Output('ammend-scheduled-transaction-remove-frequency','style'),
+                        'str' : Output('ammend-scheduled-transaction-remove-frequency','children'),
+                        'color' : Output('ammend-scheduled-transaction-remove-frequency','color'),
+                    }
+                }
             },
             'data' : {
                 'index': Output('ammend-scheduled-transaction-index','data'),
                 'account': Output('ammend-scheduled-transaction-account','data'),
-            },
-            'styles' : {'frequency' : Output('ammend-scheduled-transaction-remove-frequency','style'),}     
+            }
         },
         inputs={
-            "buttons" : {
+            "activate_buttons" : {
                 'manage': Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
                 'add' : Input('sched-transaction-add-new','n_clicks'),
             },
-            'states' : {'account': {'account_name': State("sched-transaction-selected-account-dropdown", "value")}}
+            "freq_buttons" : {
+                'add': Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
+                'remove' : Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+            },
+            'states' : {
+                'account': {
+                    'name': State("sched-transaction-selected-account-dropdown", "value")
+                },
+                'freq': {
+                    'add_btn_str' : State('ammend-scheduled-transaction-add-frequency','children'), 
+                    'rem_btn_str' : State('ammend-scheduled-transaction-remove-frequency','children'),
+                    'nickname' : State('ammend-scheduled-transaction-nickname','value'),
+                    'amount' : State('ammend-scheduled-transaction-amount','value'),
+                },
+                'data' : {
+                    'index' : State('ammend-scheduled-transaction-index','data'),
+                    # 'account' : State('ammend-scheduled-transaction-account','data'),
+                }
+            }
         },
         prevent_initial_call = True
     )
-    def scheduled_transaction_modal(buttons,states):
+    def scheduled_transaction_modal(activate_buttons,freq_buttons,states):
         #Title: Ammend vs Add
         #btn: Save Changes vs Save
         #can't add frequency rules until all fields have been added
 
         # input Output('remove-st-toast','is_open'), -> close modal   
-        #      
         c = ctx.args_grouping
+        
+        content_defaults = {
+            'freq' : {
+                'add_btn' : {
+                    'str' : 'Add frequency', 'color' : 'primary'
+                },
+                'rem_btn' : { 
+                    'str' : 'Remove frequency', 'color' : 'danger', 'style' : None
+                },
+            }
+        }
 
-        if c.buttons.add.triggered:
-            print(c.buttons.add)
+        amt_invalid=False
+        sum_invalid=False
+        if (not states.freq.nickname):sum_invalid=True
+        if (not states.freq.amount):amt_invalid=True
+
+        if c.activate_buttons.add.triggered:
             # selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
             # scheduled_transaction = selected_account._create_scheduled_transaction()
             return {
                 'open_states' : {'modal' : True},
                 'modal_content' : {
-                    'nickname' : None,
+                    'nickname' : {'value':None,'invalid':False},
                     'description' : None,
-                    'amount' : None,
+                    'amount' : {'value':None,'invalid':False},
                     'type' : 'DEBIT',
-                    'freq_accordian' : None
+                    'freq' : {
+                        'accordian' : None,
+                        'div' : {'remove':{'display':'none'},'add':{'display':'none'}},
+                        'add_btn' : {
+                            'str':no_update, 
+                            'color':no_update
+                        },
+                        'rem_btn' : {
+                            'style':{'display':'none'},
+                            'str':no_update, 
+                            'color':no_update
+                        },
+                    }
                 },
                 'data' : {
                     'index': None,
-                    'account': states.account.account_name
-                },
-                'styles' : {'frequency' :{'display':'none'}}     
+                    'account': states.account.name
+                }
             }
         
-        elif (True in [i.triggered for i in c.buttons.manage]) & ([(i.value) for i in c.buttons.manage] != [0]* len(c.buttons.manage)):
+        elif (True in [i.triggered for i in c.activate_buttons.manage]) & ([(i.value) for i in c.activate_buttons.manage] != [0]* len(c.activate_buttons.manage)):
             indx =int(ctx.triggered_id['index'].split('_')[1])
-            selected_account = gui._A_M._determine_account_from_name(states.account.account_name)
+            selected_account = gui._A_M._determine_account_from_name(states.account.name)
             scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(indx)
 
             style = None
@@ -811,68 +875,148 @@ def callbacks(gui, dash:object):
             return {
                 'open_states' : {'modal' : True},
                 'modal_content' : {
-                    'nickname' : scheduled_transaction._summary,
+                    'nickname' : {'value':scheduled_transaction._summary,'invalid':False},
                     'description' : scheduled_transaction._description,
-                    'amount' : scheduled_transaction._amount,
+                    'amount' : {'value':scheduled_transaction._amount,'invalid':False},
                     'type' : scheduled_transaction._type,
-                    'freq_accordian' :  acc
+                    'freq' : {
+                        'accordian' :  acc,
+                        'div' : {'remove':{'display':'none'},'add':{'display':'none'}},
+                        'add_btn' : {
+                            'str':no_update,
+                            'color':no_update
+                        },
+                        'rem_btn' : {
+                            'style':style,
+                            'str':no_update,
+                            'color':no_update
+                        },
+                    }
                 },
                 'data' : {
                     'index': indx,
-                    'account': states.account.account_name
-                },
-                'styles' : {'frequency' :style}
+                    'account': states.account.name
+                }
             }
+
+        elif c.freq_buttons.add.triggered or c.freq_buttons.remove.triggered:
+            print(f'business time: {ctx.triggered_id}')
+            if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
+                if states.freq.add_btn_str == 'Hide':
+                    return {
+                        'open_states' : {'modal': True},
+                        'modal_content' : {
+                            'nickname' : {'value':no_update,'invalid':sum_invalid},
+                            'description':no_update,
+                            'amount' : {'value':no_update,'invalid':amt_invalid},
+                            'type':no_update,
+                            'freq' : {
+                                'accordian':no_update,
+                                'div' : {
+                                    'remove' : {'display':'none'},
+                                    'add' : {'display':'none'}
+                                },
+                                'add_btn' : content_defaults['freq']['add_btn'],
+                                'rem_btn' : content_defaults['freq']['rem_btn']
+                            }
+                        },
+                        'data' : {'index':no_update,'account':no_update}
+                    }
+                else:
+                    if amt_invalid | sum_invalid:
+                        return {
+                                'open_states' : {'modal': True},
+                                'modal_content' : {
+                                    'nickname' : {'value':no_update,'invalid':sum_invalid},
+                                    'description':no_update,
+                                    'amount' : {'value':no_update,'invalid':amt_invalid},
+                                    'type':no_update,
+                                    'freq' : {
+                                        'accordian':no_update,
+                                        'div' : {
+                                            'remove' : {'display':'none'},
+                                            'add' : {'display':'none'}
+                                        },
+                                        'add_btn' : content_defaults['freq']['add_btn'],
+                                        'rem_btn' : content_defaults['freq']['rem_btn']
+                                    }
+                                },
+                                'data' : {'index':no_update,'account':no_update}
+                            }
+                    else:
+                        if not states.data.index:
+                            selected_account = gui._A_M._determine_account_from_name(states.account.name)
+                            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+                            if not scheduled_transaction:
+                                print(f'adding scheduled transaction')
+                                scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=states.freq.amount)
+                        
+                                print(f'index: {scheduled_transaction._index}')
+                        return {
+                            'open_states' : {'modal': True},
+                            'modal_content' : {
+                                'nickname' : {'value':no_update,'invalid':sum_invalid},
+                                'description':no_update,
+                                'amount' : {'value':no_update,'invalid':amt_invalid},
+                                'type':no_update,
+                                'freq' : {
+                                    'accordian':no_update,
+                                    'div' : {
+                                        'remove' : {'display':'none'},
+                                        'add' : {'padding':'2%'}
+                                    },
+                                    'add_btn' : {'str':'Hide','color':'secondary'},
+                                    'rem_btn' : {'style':no_update,'str':'Remove frequency','color':'danger'}
+                                }
+                            },
+                            'data' : {'index':scheduled_transaction._index,'account':no_update}
+                        }
+            elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
+                if states.freq.rem_btn_str == 'Hide':
+                    
+                    return {
+                        'open_states' : {'modal': True},
+                        'modal_content' : {
+                            'nickname' : {'value':no_update,'invalid':sum_invalid},
+                            'description':no_update,
+                            'amount' : {'value':no_update,'invalid':amt_invalid},
+                            'type':no_update,
+                            'freq' : {
+                                'accordian':no_update,
+                                'div' : {
+                                    'remove' : {'display':'none'},
+                                    'add' : {'display':'none'}
+                                },
+                                'add_btn' : content_defaults['freq']['add_btn'],
+                                'rem_btn' : content_defaults['freq']['rem_btn']
+                            }
+                        },
+                        'data' : {'index':no_update,'account':no_update}
+                    }
+                else:
+                    
+                    return {
+                        'open_states' : {'modal': True},
+                        'modal_content' : {
+                            'nickname' : {'value':no_update,'invalid':sum_invalid},
+                            'description':no_update,
+                            'amount' : {'value':no_update,'invalid':amt_invalid},
+                            'type':no_update,
+                            'freq' : {
+                                'accordian':no_update,
+                                'div' : {
+                                    'remove' : {'display':'none'},
+                                    'add' : {'padding':'2%'}
+                                },
+                                'add_btn' : content_defaults['freq']['add_btn'],
+                                'rem_btn' : {'style':content_defaults['freq']['rem_btn'].style,'str':'Hide','color':'secondary'}
+                            }
+                        },
+                        'data' : {'index':no_update,'account':no_update}
+                    }
         else:
             raise PreventUpdate
 
-    @dash.callback(
-        Output('ammend-scheduled-transaction-frequency','style'),
-        Output('ammend-scheduled-transaction-add-frequency','color'),
-        Output('ammend-scheduled-transaction-add-frequency','children'),        
-        Output('remove-scheduled-transaction-frequency','style'),
-        Output('ammend-scheduled-transaction-remove-frequency','color'),
-        Output('ammend-scheduled-transaction-remove-frequency','children'),
-        Output('ammend-scheduled-transaction-nickname','invalid'),
-        Output('ammend-scheduled-transaction-amount','invalid'),
-        Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
-        Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
-        State('ammend-scheduled-transaction-add-frequency','children'), 
-        State('ammend-scheduled-transaction-remove-frequency','children'),
-        State('ammend-scheduled-transaction-nickname','value'),
-        State('ammend-scheduled-transaction-amount','value'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call = True
-    )
-    def render_frequencies(add_n,rem_n,add_btn_str,rem_btn_str, nickname, amount, st_index, selected_account_nickname):
-        amt_invalid=False
-        sum_invalid=False
-        if (not nickname):sum_invalid=True
-        if (not amount):amt_invalid=True
-
-        if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
-            if add_btn_str == 'Hide':
-                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
-            else:
-                if amt_invalid | sum_invalid:
-                    return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
-                else:
-                    if not st_index:
-                        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-                        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-                        if not scheduled_transaction:
-                            print(f'adding scheduled transaction')
-                            selected_account._create_scheduled_transaction(t_summary=nickname, t_amount=amount)
-                            # Need to store the index to be able to update...
-
-                    return {'padding':'2%'}, 'secondary', 'Hide', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
-        elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
-            if rem_btn_str == 'Hide':
-                return {'display':'none'}, 'primary', 'Add frequency', {'display':'none'}, 'danger', 'Remove frequency', sum_invalid, amt_invalid
-            else:
-                return {'display':'none'}, 'primary', 'Add frequency', {'padding':'2%'}, 'secondary', 'Hide', sum_invalid, amt_invalid
-    
     @dash.callback(
         Output('ammend-scheduled-transaction-subfrequency-monthly','style'),  
         Output('ammend-scheduled-transaction-subfrequency-type-monthly','style')  ,
