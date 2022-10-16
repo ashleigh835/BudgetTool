@@ -485,7 +485,7 @@ def build_freq_cards(freq:str, ls:list, top:bool=True, hidden_card_lim:int=None)
                         dbc.CardBody(
                             dbc.ListGroup(flush=True,id={'type': f'{freq}_scheduled_transaction_item','index': str(i)})
                         ),
-                        dbc.CardFooter(id={'type': f'{freq}_scheduled_transaction_footer','index': str(i)})
+                        dbc.CardFooter(id={'type': f'{freq}_scheduled_transaction_footer','index': str(i)}, style={'display':'none'})
                     ],                
                     id={'type': f'{freq}_scheduled_transaction_card','index': str(i)},
                     style = {'height': '100%', 'display': 'block'}
@@ -917,7 +917,7 @@ def callbacks(gui, dash:object):
                                     'add' : {'display':'none'}
                                 },
                                 'add_btn' : content_defaults['freq']['add_btn'],
-                                'rem_btn' : content_defaults['freq']['rem_btn']
+                                'rem_btn' : {'str':no_update,'color':no_update,'style':no_update}
                             }
                         },
                         'data' : {'index':no_update,'account':no_update}
@@ -937,21 +937,20 @@ def callbacks(gui, dash:object):
                                             'remove' : {'display':'none'},
                                             'add' : {'display':'none'}
                                         },
-                                        'add_btn' : content_defaults['freq']['add_btn'],
-                                        'rem_btn' : content_defaults['freq']['rem_btn']
+                                        'add_btn' : {'str':no_update,'color':no_update},
+                                        'rem_btn' : {'str':no_update,'color':no_update,'style':no_update}
                                     }
                                 },
                                 'data' : {'index':no_update,'account':no_update}
                             }
                     else:
-                        if not states.data.index:
+                        indx = states.data.index
+                        if not indx:
                             selected_account = gui._A_M._determine_account_from_name(states.account.name)
                             scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
                             if not scheduled_transaction:
-                                print(f'adding scheduled transaction')
                                 scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=states.freq.amount)
-                        
-                                print(f'index: {scheduled_transaction._index}')
+                                indx = scheduled_transaction._index
                         return {
                             'open_states' : {'modal': True},
                             'modal_content' : {
@@ -969,7 +968,7 @@ def callbacks(gui, dash:object):
                                     'rem_btn' : {'style':no_update,'str':'Remove frequency','color':'danger'}
                                 }
                             },
-                            'data' : {'index':scheduled_transaction._index,'account':no_update}
+                            'data' : {'index':indx,'account':no_update}
                         }
             elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
                 if states.freq.rem_btn_str == 'Hide':
