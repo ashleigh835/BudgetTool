@@ -792,7 +792,6 @@ def callbacks(gui, dash:object):
                 },
                 'data' : {
                     'index' : State('ammend-scheduled-transaction-index','data'),
-                    # 'account' : State('ammend-scheduled-transaction-account','data'),
                     'sub_freq' : State('scheduled-transaction-sub-freq','data')
                 }
             }
@@ -824,8 +823,6 @@ def callbacks(gui, dash:object):
         if (not states.freq.amount):amt_invalid=True
 
         if c.activate_buttons.add.triggered:
-            # selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            # scheduled_transaction = selected_account._create_scheduled_transaction()
             return {
                 'open_states' : {'modal' : True},
                 'modal_content' : {
@@ -937,11 +934,9 @@ def callbacks(gui, dash:object):
                         indx = states.data.index
                         if not indx:
                             selected_account = gui._A_M._determine_account_from_name(states.account.name)
-                            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
-                            if not scheduled_transaction:
-                                scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=states.freq.amount)
-                                selected_account._add_scheduled_transaction(scheduled_transaction)
-                                indx = scheduled_transaction._index
+                            scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=float(states.freq.amount))
+                            selected_account._add_scheduled_transaction(scheduled_transaction)
+                            indx = scheduled_transaction._index
                         return {
                             'open_states' : {'modal': True},
                             'modal_content' : {
@@ -1169,9 +1164,9 @@ def callbacks(gui, dash:object):
                 gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._description}] -> [{description}]')
                 scheduled_transaction._description = clean(description)
 
-            if clean(amount) != scheduled_transaction._amount:
+            if float(clean(amount)) != scheduled_transaction._amount:
                 gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._amount}] -> [{amount}]')
-                scheduled_transaction._amount = clean(amount)
+                scheduled_transaction._amount = float(clean(amount))
 
             if clean(st_type)!= scheduled_transaction._type:
                 gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._type}] -> [{st_type}]')
