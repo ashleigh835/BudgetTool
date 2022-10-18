@@ -262,15 +262,6 @@ ammend_schedule_transaction_modal = dbc.Modal(
             [   dbc.Button("Delete Scheduled Transaction", id='btn-wipe-scheduled-transaction', className="ml-auto",color='danger', size="sm", outline=True),
                 dbc.Button("Save Changes", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm", outline=True),
             ]
-        ),        
-        dbc.Toast(
-            [html.P("Scheduled transaction updated!", className="mb-0")],
-            id="save-toast",
-            header="Changes Saved",
-            duration=3000,
-            is_open=False,
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
-            icon='success'
         ),   
         dbc.Toast(
             [html.P("Scheduled transaction permanently removed!", className="mb-0")],
@@ -286,6 +277,12 @@ ammend_schedule_transaction_modal = dbc.Modal(
     size="md",
     is_open=False,
 )
+
+def clean_modal_inputs(val:object):
+    if type(val) == list:
+        return val[0]
+    else:
+        return val
 
 def tab_transactions_summary(accounts:dict={}) -> html:
     return html.Div(
@@ -767,6 +764,7 @@ def callbacks(gui, dash:object):
             "activate_buttons" : {
                 'manage': Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
                 'add' : Input('sched-transaction-add-new','n_clicks'),
+                'change' : Input('btn-ammend-scheduled-transaction','n_clicks'),
             },
             "freq_buttons" : {
                 'add': Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
@@ -785,6 +783,8 @@ def callbacks(gui, dash:object):
                     'rem_btn_str' : State('ammend-scheduled-transaction-remove-frequency','children'),
                     'nickname' : State('ammend-scheduled-transaction-nickname','value'),
                     'amount' : State('ammend-scheduled-transaction-amount','value'),
+                    'description' : State('ammend-scheduled-transaction-description','value'),
+                    'type' : State('ammend-scheduled-transaction-type','value'),
                 },
                 'sub_freq': {
                     'interval' : State('ammend-scheduled-transaction-frequency-radio','value'),
@@ -799,11 +799,6 @@ def callbacks(gui, dash:object):
         prevent_initial_call = True
     )
     def scheduled_transaction_modal(activate_buttons,freq_buttons,sub_freq_buttons,states):
-        #Title: Ammend vs Add
-        #btn: Save Changes vs Save
-        #can't add frequency rules until all fields have been added
-
-        # input Output('remove-st-toast','is_open'), -> close modal   
         c = ctx.args_grouping
         
         content_defaults = {
@@ -886,6 +881,63 @@ def callbacks(gui, dash:object):
                     'account': states.account.name
                 }
             }
+
+        elif c.activate_buttons.change.triggered:
+            print('saving')    
+            selected_account = gui._A_M._determine_account_from_name(states.account.name)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+            if not scheduled_transaction:
+                raise PreventUpdate
+
+            if clean_modal_inputs(states.freq.nickname) != scheduled_transaction._summary:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._summary}] -> [{states.freq.nickname}]')
+                scheduled_transaction._summary = clean_modal_inputs(states.freq.nickname)
+
+            if clean_modal_inputs(states.freq.description) != scheduled_transaction._description:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._description}] -> [{states.freq.description}]')
+                scheduled_transaction._description = clean_modal_inputs(states.freq.description)
+
+            if float(clean_modal_inputs(states.freq.amount)) != scheduled_transaction._amount:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._amount}] -> [{states.freq.amount}]')
+                scheduled_transaction._amount = float(clean_modal_inputs(states.freq.amount))
+
+            if clean_modal_inputs(states.freq.type)!= scheduled_transaction._type:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._type}] -> [{states.freq.type}]')
+                scheduled_transaction._type = clean_modal_inputs(states.freq.type)
+
+            if gui._check_save(): 
+                gui._save() 
+                return {
+                    'open_states' : {'modal' : False},
+                    'modal_content' : {
+                        'nickname' : {'value':None,'invalid':False},
+                        'description' : None,
+                        'amount' : {'value':None,'invalid':False},
+                        'type' : 'DEBIT',
+                        'freq' : {
+                            'accordian' : None,
+                            'div' : {'remove':{'display':'none'},'add':{'display':'none'}},
+                            'add_btn' : {
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                            'rem_btn' : {
+                                'style':{'display':'none'},
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                        }
+                    },
+                    'data' : {
+                        'index': None,
+                        'account': states.account.name
+                    }
+                }
+            else:
+                print('Nothing to Save')    
+
+            raise PreventUpdate
+
 
         elif c.freq_buttons.add.triggered or c.freq_buttons.remove.triggered:
             if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
@@ -1124,7 +1176,6 @@ def callbacks(gui, dash:object):
         prevent_initial_call=True
     )
     def load_remove_sub_frequency_options(n,n2, st_index, selected_account_nickname):
-        print('reloading options')
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
         options = []
@@ -1134,51 +1185,6 @@ def callbacks(gui, dash:object):
                 options += [{'label':sub_freq, 'value':f'{freq}_{sub_freq}'}]
 
         return options
-    
-    @dash.callback(
-        Output('save-toast','is_open'),
-        Input('btn-ammend-scheduled-transaction','n_clicks'),
-        State('ammend-scheduled-transaction-nickname','value'),
-        State('ammend-scheduled-transaction-description','value'),
-        State('ammend-scheduled-transaction-amount','value'),
-        State('ammend-scheduled-transaction-type','value'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def save_scheduled_transaction_changes(n, nickname, description, amount, st_type, st_index, selected_account_nickname):
-        if n!=0:
-            def clean(val:object):
-                if type(val) == list:
-                    return val[0]
-                else:
-                    return val
-
-            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-            if clean(nickname) != scheduled_transaction._summary:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._summary}] -> [{nickname}]')
-                scheduled_transaction._summary = clean(nickname)
-
-            if clean(description) != scheduled_transaction._description:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._description}] -> [{description}]')
-                scheduled_transaction._description = clean(description)
-
-            if float(clean(amount)) != scheduled_transaction._amount:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._amount}] -> [{amount}]')
-                scheduled_transaction._amount = float(clean(amount))
-
-            if clean(st_type)!= scheduled_transaction._type:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._type}] -> [{st_type}]')
-                scheduled_transaction._type = clean(st_type)
-
-            if gui._check_save(): 
-                gui._save() 
-                return True
-            else:
-                print('Nothing to Save')    
-
-        raise PreventUpdate
 
     @dash.callback(
         Output('remove-st-toast','is_open'),
