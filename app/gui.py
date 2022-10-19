@@ -3,6 +3,7 @@ from app.account import Account_Manager
 
 from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
 from app.layouts.transactions import page_layout as t_page, tab_transactions_summary, tab_scheduled_transactions, callbacks as transaction_callbacks
+from app.layouts.settings import page_layout as s_page
 from app.layouts.common import nav_bar, account_creation_modal
 
 import dash_bootstrap_components as dbc
@@ -134,7 +135,7 @@ class App(object):
             if pathname == '/Home':
                 return h_page
             elif pathname == '/Settings':
-                return html.Div('coming sooon')
+                return s_page
             elif pathname == '/Budgeting':
                 return html.Div('coming sooon')
             elif pathname == '/Transactions':

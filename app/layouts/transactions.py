@@ -4,7 +4,6 @@ from app.helpers.date_helpers import weekdays
 from app.helpers.readable_helpers import currency_readable_styled, currency_readable_styled, monthly_readable
 from app.layouts.common import account_card
 
-# import dash
 from dash import dcc, html, dash_table, ctx, MATCH, ALL, no_update
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
@@ -24,8 +23,7 @@ tab_Style = {
 page_layout = html.Div(
     [   dcc.Tabs(
             id='tab', 
-            # value='transactions',
-            value='sched transactions' ,
+            value='transactions',
             children=[
                 dcc.Tab(label='Transactions', value='transactions',style=tab_Style,selected_style=tab_Style),
                 dcc.Tab(label='Scheduled Transactions', value='sched transactions',style=tab_Style,selected_style=tab_Style),
