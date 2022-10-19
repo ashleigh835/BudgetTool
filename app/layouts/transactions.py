@@ -765,6 +765,7 @@ def callbacks(gui, dash:object):
                 'manage': Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
                 'add' : Input('sched-transaction-add-new','n_clicks'),
                 'change' : Input('btn-ammend-scheduled-transaction','n_clicks'),
+                'remove' : Input('btn-wipe-scheduled-transaction','n_clicks'),
             },
             "freq_buttons" : {
                 'add': Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
@@ -883,7 +884,6 @@ def callbacks(gui, dash:object):
             }
 
         elif c.activate_buttons.change.triggered:
-            print('saving')    
             selected_account = gui._A_M._determine_account_from_name(states.account.name)
             scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
             if not scheduled_transaction:
@@ -938,6 +938,45 @@ def callbacks(gui, dash:object):
 
             raise PreventUpdate
 
+        elif c.activate_buttons.remove.triggered:
+            selected_account = gui._A_M._determine_account_from_name(states.account.name)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+            
+            if not scheduled_transaction:
+                raise PreventUpdate
+
+            selected_account._remove_scheduled_transaction(scheduled_transaction)            
+            if gui._check_save(): 
+                gui._save() 
+                return {
+                    'open_states' : {'modal' : False},
+                    'modal_content' : {
+                        'nickname' : {'value':None,'invalid':False},
+                        'description' : None,
+                        'amount' : {'value':None,'invalid':False},
+                        'type' : 'DEBIT',
+                        'freq' : {
+                            'accordian' : None,
+                            'div' : {'remove':{'display':'none'},'add':{'display':'none'}},
+                            'add_btn' : {
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                            'rem_btn' : {
+                                'style':{'display':'none'},
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                        }
+                    },
+                    'data' : {
+                        'index': None,
+                        'account': states.account.name
+                    }
+                }
+            else:
+                print('Nothing to Save') 
+            raise PreventUpdate
 
         elif c.freq_buttons.add.triggered or c.freq_buttons.remove.triggered:
             if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
@@ -1185,26 +1224,6 @@ def callbacks(gui, dash:object):
                 options += [{'label':sub_freq, 'value':f'{freq}_{sub_freq}'}]
 
         return options
-
-    @dash.callback(
-        Output('remove-st-toast','is_open'),
-        Input('btn-wipe-scheduled-transaction','n_clicks'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def delete_scheduled_transaction(n, st_index, selected_account_nickname):
-        if n != 0:
-            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-            selected_account._remove_scheduled_transaction(scheduled_transaction)
-            
-            if gui._check_save(): 
-                gui._save() 
-                return True
-        
-        raise PreventUpdate
-
 
         #     #    graph = dcc.Graph(id='transaction-graph', figure=fig, className='mb-3')        
         # @dash.callback(
