@@ -141,6 +141,7 @@ ammend_schedule_transaction_modal = dbc.Modal(
     [   dbc.ModalHeader("Ammend Scheduled Transaction"),
         dcc.Store(storage_type='session', clear_data=True, id='ammend-scheduled-transaction-index'),
         dcc.Store(storage_type='session', clear_data=True, id='ammend-scheduled-transaction-account'),
+        dcc.Store(storage_type='session', clear_data=True, id='scheduled-transaction-refresh'),
         dbc.Card(
             [   dbc.FormFloating(
                     [   dbc.Input(type="text", id='ammend-scheduled-transaction-nickname'),
@@ -262,48 +263,18 @@ ammend_schedule_transaction_modal = dbc.Modal(
             [   dbc.Button("Delete Scheduled Transaction", id='btn-wipe-scheduled-transaction', className="ml-auto",color='danger', size="sm", outline=True),
                 dbc.Button("Save Changes", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm", outline=True),
             ]
-        ),        
-        dbc.Toast(
-            [html.P("Scheduled transaction updated!", className="mb-0")],
-            id="save-toast",
-            header="Changes Saved",
-            duration=3000,
-            is_open=False,
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
-            icon='success'
-        ),     
-        dbc.Toast(
-            [html.P("Frequency added to scheduled transaction staged changes! Save to permanaently update", className="mb-0")],
-            id="add-freq-toast",
-            header="Frequency Added",
-            duration=3000,
-            is_open=False, 
-            icon='success',
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
-        ),     
-        dbc.Toast(
-            [html.P("Frequency staged to be removed! Save to permanaently update", className="mb-0")],
-            id="remove-freq-toast",
-            header="Frequency Removed",
-            duration=3000,
-            is_open=False, 
-            icon='danger',
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
-        ),     
-        dbc.Toast(
-            [html.P("Scheduled transaction permanently removed!", className="mb-0")],
-            id="remove-st-toast",
-            header="Scheduled Transaction Removed",
-            duration=3000,
-            is_open=False, 
-            icon='danger',
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
         )
     ],
     id="edit-scheduled-transaction-modal",
     size="md",
     is_open=False,
 )
+
+def clean_modal_inputs(val:object):
+    if type(val) == list:
+        return val[0]
+    else:
+        return val
 
 def tab_transactions_summary(accounts:dict={}) -> html:
     return html.Div(
@@ -485,7 +456,7 @@ def build_freq_cards(freq:str, ls:list, top:bool=True, hidden_card_lim:int=None)
                         dbc.CardBody(
                             dbc.ListGroup(flush=True,id={'type': f'{freq}_scheduled_transaction_item','index': str(i)})
                         ),
-                        dbc.CardFooter(id={'type': f'{freq}_scheduled_transaction_footer','index': str(i)})
+                        dbc.CardFooter(id={'type': f'{freq}_scheduled_transaction_footer','index': str(i)}, style={'display':'none'})
                     ],                
                     id={'type': f'{freq}_scheduled_transaction_card','index': str(i)},
                     style = {'height': '100%', 'display': 'block'}
@@ -584,16 +555,21 @@ def callbacks(gui, dash:object):
         Output({'type': 'monthly_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'monthly_scheduled_transaction_footer','index': MATCH}, 'style'),
         Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'monthly_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'monthly_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_monthly(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_monthly(selected_account_nickname,refresh,id,footer):
         """Populate each monthly scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('monthly',id['index'])
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -622,17 +598,22 @@ def callbacks(gui, dash:object):
         Output({'type': 'weekly_scheduled_transaction_item','index': MATCH}, 'children'),
         Output({'type': 'weekly_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'weekly_scheduled_transaction_footer','index': MATCH}, 'style'),
-        Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("sched-transaction-selected-account-dropdown", "value"),
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'weekly_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'weekly_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_weekly(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_weekly(selected_account_nickname,refresh, id,footer):
         """Populate each weekly scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('weekly',weekdays()[int(id['index'])-1])
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -661,16 +642,21 @@ def callbacks(gui, dash:object):
         Output({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'style'),
         Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'daily_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_daily(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_daily(selected_account_nickname,refresh,id,footer):
         """Populate daily scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('daily')
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -711,17 +697,22 @@ def callbacks(gui, dash:object):
         Output({'type': 'one-off_scheduled_transaction_item','index': MATCH}, 'children'),
         Output({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'style'),
-        Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("sched-transaction-selected-account-dropdown", "value"),  
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'one-off_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_one_off_card_content(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_one_off_card_content(selected_account_nickname,refresh,id,footer):
         """Populate each one-off scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('one-off',id['index'])
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -779,16 +770,23 @@ def callbacks(gui, dash:object):
             'data' : {
                 'index': Output('ammend-scheduled-transaction-index','data'),
                 'account': Output('ammend-scheduled-transaction-account','data'),
+                'refresh_count' : Output("scheduled-transaction-refresh", 'data'),
             }
         },
         inputs={
             "activate_buttons" : {
                 'manage': Input({'type':f'manage_st','index': ALL}, 'n_clicks'),
                 'add' : Input('sched-transaction-add-new','n_clicks'),
+                'change' : Input('btn-ammend-scheduled-transaction','n_clicks'),
+                'remove' : Input('btn-wipe-scheduled-transaction','n_clicks'),
             },
             "freq_buttons" : {
                 'add': Input('ammend-scheduled-transaction-add-frequency','n_clicks'),         
                 'remove' : Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+            },
+            "sub_freq_buttons" : {
+                'add': Input('btn-add-scheduled-transaction-subfrequency','n_clicks'), 
+                'remove':Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),      
             },
             'states' : {
                 'account': {
@@ -799,21 +797,22 @@ def callbacks(gui, dash:object):
                     'rem_btn_str' : State('ammend-scheduled-transaction-remove-frequency','children'),
                     'nickname' : State('ammend-scheduled-transaction-nickname','value'),
                     'amount' : State('ammend-scheduled-transaction-amount','value'),
+                    'description' : State('ammend-scheduled-transaction-description','value'),
+                    'type' : State('ammend-scheduled-transaction-type','value'),
+                },
+                'sub_freq': {
+                    'interval' : State('ammend-scheduled-transaction-frequency-radio','value'),
+                    'sub_freq_ls' : State('ammend-scheduled-transaction-frequency-remove-dropdown','value'),
                 },
                 'data' : {
                     'index' : State('ammend-scheduled-transaction-index','data'),
-                    # 'account' : State('ammend-scheduled-transaction-account','data'),
+                    'sub_freq' : State('scheduled-transaction-sub-freq','data')
                 }
             }
         },
         prevent_initial_call = True
     )
-    def scheduled_transaction_modal(activate_buttons,freq_buttons,states):
-        #Title: Ammend vs Add
-        #btn: Save Changes vs Save
-        #can't add frequency rules until all fields have been added
-
-        # input Output('remove-st-toast','is_open'), -> close modal   
+    def scheduled_transaction_modal(activate_buttons,freq_buttons,sub_freq_buttons,states):
         c = ctx.args_grouping
         
         content_defaults = {
@@ -833,8 +832,6 @@ def callbacks(gui, dash:object):
         if (not states.freq.amount):amt_invalid=True
 
         if c.activate_buttons.add.triggered:
-            # selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            # scheduled_transaction = selected_account._create_scheduled_transaction()
             return {
                 'open_states' : {'modal' : True},
                 'modal_content' : {
@@ -858,7 +855,8 @@ def callbacks(gui, dash:object):
                 },
                 'data' : {
                     'index': None,
-                    'account': states.account.name
+                    'account': states.account.name,
+                    'refresh_count' : no_update
                 }
             }
         
@@ -895,12 +893,109 @@ def callbacks(gui, dash:object):
                 },
                 'data' : {
                     'index': indx,
-                    'account': states.account.name
+                    'account': states.account.name,
+                    'refresh_count' : no_update
                 }
             }
 
+        elif c.activate_buttons.change.triggered:
+            selected_account = gui._A_M._determine_account_from_name(states.account.name)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+            if not scheduled_transaction:
+                raise PreventUpdate
+
+            if clean_modal_inputs(states.freq.nickname) != scheduled_transaction._summary:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._summary}] -> [{states.freq.nickname}]')
+                scheduled_transaction._summary = clean_modal_inputs(states.freq.nickname)
+
+            if clean_modal_inputs(states.freq.description) != scheduled_transaction._description:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._description}] -> [{states.freq.description}]')
+                scheduled_transaction._description = clean_modal_inputs(states.freq.description)
+
+            if float(clean_modal_inputs(states.freq.amount)) != scheduled_transaction._amount:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._amount}] -> [{states.freq.amount}]')
+                scheduled_transaction._amount = float(clean_modal_inputs(states.freq.amount))
+
+            if clean_modal_inputs(states.freq.type)!= scheduled_transaction._type:
+                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._type}] -> [{states.freq.type}]')
+                scheduled_transaction._type = clean_modal_inputs(states.freq.type)
+
+            if gui._check_save(): 
+                gui._save() 
+                return {
+                    'open_states' : {'modal' : False},
+                    'modal_content' : {
+                        'nickname' : {'value':None,'invalid':False},
+                        'description' : None,
+                        'amount' : {'value':None,'invalid':False},
+                        'type' : 'DEBIT',
+                        'freq' : {
+                            'accordian' : None,
+                            'div' : {'remove':{'display':'none'},'add':{'display':'none'}},
+                            'add_btn' : {
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                            'rem_btn' : {
+                                'style':{'display':'none'},
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                        }
+                    },
+                    'data' : {
+                        'index': None,
+                        'account': states.account.name,
+                        'refresh_count' : True
+                    }
+                }
+            else:
+                print('Nothing to Save')    
+
+            raise PreventUpdate
+
+        elif c.activate_buttons.remove.triggered:
+            selected_account = gui._A_M._determine_account_from_name(states.account.name)
+            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+            
+            if not scheduled_transaction:
+                raise PreventUpdate
+
+            selected_account._remove_scheduled_transaction(scheduled_transaction)            
+            if gui._check_save(): 
+                gui._save() 
+                return {
+                    'open_states' : {'modal' : False},
+                    'modal_content' : {
+                        'nickname' : {'value':None,'invalid':False},
+                        'description' : None,
+                        'amount' : {'value':None,'invalid':False},
+                        'type' : 'DEBIT',
+                        'freq' : {
+                            'accordian' : None,
+                            'div' : {'remove':{'display':'none'},'add':{'display':'none'}},
+                            'add_btn' : {
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                            'rem_btn' : {
+                                'style':{'display':'none'},
+                                'str':no_update, 
+                                'color':no_update
+                            },
+                        }
+                    },
+                    'data' : {
+                        'index': None,
+                        'account': states.account.name,
+                        'refresh_count' : True
+                    }
+                }
+            else:
+                print('Nothing to Save') 
+            raise PreventUpdate
+
         elif c.freq_buttons.add.triggered or c.freq_buttons.remove.triggered:
-            print(f'business time: {ctx.triggered_id}')
             if ctx.triggered_id == 'ammend-scheduled-transaction-add-frequency':
                 if states.freq.add_btn_str == 'Hide':
                     return {
@@ -917,10 +1012,10 @@ def callbacks(gui, dash:object):
                                     'add' : {'display':'none'}
                                 },
                                 'add_btn' : content_defaults['freq']['add_btn'],
-                                'rem_btn' : content_defaults['freq']['rem_btn']
+                                'rem_btn' : {'str':no_update,'color':no_update,'style':no_update}
                             }
                         },
-                        'data' : {'index':no_update,'account':no_update}
+                        'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                     }
                 else:
                     if amt_invalid | sum_invalid:
@@ -937,21 +1032,19 @@ def callbacks(gui, dash:object):
                                             'remove' : {'display':'none'},
                                             'add' : {'display':'none'}
                                         },
-                                        'add_btn' : content_defaults['freq']['add_btn'],
-                                        'rem_btn' : content_defaults['freq']['rem_btn']
+                                        'add_btn' : {'str':no_update,'color':no_update},
+                                        'rem_btn' : {'str':no_update,'color':no_update,'style':no_update}
                                     }
                                 },
-                                'data' : {'index':no_update,'account':no_update}
+                                'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                             }
                     else:
-                        if not states.data.index:
+                        indx = states.data.index
+                        if not indx:
                             selected_account = gui._A_M._determine_account_from_name(states.account.name)
-                            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
-                            if not scheduled_transaction:
-                                print(f'adding scheduled transaction')
-                                scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=states.freq.amount)
-                        
-                                print(f'index: {scheduled_transaction._index}')
+                            scheduled_transaction = selected_account._create_scheduled_transaction(t_summary=states.freq.nickname, t_amount=float(states.freq.amount))
+                            selected_account._add_scheduled_transaction(scheduled_transaction)
+                            indx = scheduled_transaction._index
                         return {
                             'open_states' : {'modal': True},
                             'modal_content' : {
@@ -969,7 +1062,7 @@ def callbacks(gui, dash:object):
                                     'rem_btn' : {'style':no_update,'str':'Remove frequency','color':'danger'}
                                 }
                             },
-                            'data' : {'index':scheduled_transaction._index,'account':no_update}
+                            'data' : {'index':indx, 'account':no_update, 'refresh_count' : no_update}
                         }
             elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
                 if states.freq.rem_btn_str == 'Hide':
@@ -991,7 +1084,7 @@ def callbacks(gui, dash:object):
                                 'rem_btn' : content_defaults['freq']['rem_btn']
                             }
                         },
-                        'data' : {'index':no_update,'account':no_update}
+                        'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                     }
                 else:
                     
@@ -1005,15 +1098,81 @@ def callbacks(gui, dash:object):
                             'freq' : {
                                 'accordian':no_update,
                                 'div' : {
-                                    'remove' : {'display':'none'},
-                                    'add' : {'padding':'2%'}
+                                    'remove' : {'padding':'2%'},
+                                    'add' : {'display':'none'}
                                 },
                                 'add_btn' : content_defaults['freq']['add_btn'],
-                                'rem_btn' : {'style':content_defaults['freq']['rem_btn'].style,'str':'Hide','color':'secondary'}
+                                'rem_btn' : {'style':content_defaults['freq']['rem_btn']['style'],'str':'Hide','color':'secondary'}
                             }
                         },
-                        'data' : {'index':no_update,'account':no_update}
+                        'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                     }
+        
+        elif c.sub_freq_buttons.add.triggered:
+            if states.data.sub_freq: 
+                selected_account = gui._A_M._determine_account_from_name(states.account.name)
+                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+                scheduled_transaction._update_frequency(states.sub_freq.interval, states.data.sub_freq)
+                acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
+                return {
+                    'open_states' : {'modal' : True},
+                    'modal_content' : {
+                        'nickname' : {'value':no_update,'invalid':no_update},
+                        'description' : no_update,
+                        'amount' : {'value':no_update,'invalid':no_update},
+                        'type' : no_update,
+                        'freq' : {
+                            'accordian' :  acc,
+                            'div' : {'remove':no_update,'add':no_update},
+                            'add_btn' : {'str':no_update,'color':no_update},
+                            'rem_btn' : content_defaults['freq']['rem_btn'],
+                        }
+                    },
+                    'data' : { 'index': no_update, 'account': no_update, 'refresh_count' : no_update}
+                }
+            raise PreventUpdate
+        
+        elif c.sub_freq_buttons.remove.triggered:
+            if states.sub_freq.sub_freq_ls:
+                selected_account = gui._A_M._determine_account_from_name(states.account.name)
+                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(states.data.index)
+                for sub_freq in states.sub_freq.sub_freq_ls:
+                    freq = sub_freq.split('_')[0]
+                    sub_freq = sub_freq.split('_')[1]
+                    scheduled_transaction._remove_frequency(freq,sub_freq)
+
+                rem_div = no_update
+                rem_btn = {
+                    'style':content_defaults['freq']['rem_btn']['style'],
+                    'str':no_update, 
+                    'color':no_update
+                }
+                if not scheduled_transaction._frequency:
+                    rem_div={'display':'none'}
+                    rem_btn={
+                        'style':{'display':'none'},
+                        'str':no_update, 
+                        'color':no_update
+                    }
+                acc = build_scheduled_transaction_modal_frequency(scheduled_transaction)
+                return {
+                    'open_states' : {'modal' : True},
+                    'modal_content' : {
+                        'nickname' : {'value':no_update,'invalid':no_update},
+                        'description' : no_update,
+                        'amount' : {'value':no_update,'invalid':no_update},
+                        'type' : no_update,
+                        'freq' : {
+                            'accordian' :  acc,
+                            'div' : {'remove':rem_div,'add':no_update},
+                            'add_btn' : {'str':no_update,'color':no_update},
+                            'rem_btn' : rem_btn,
+                        }
+                    },
+                    'data' : { 'index': no_update, 'account': no_update, 'refresh_count' : no_update }
+                }
+            raise PreventUpdate
+
         else:
             raise PreventUpdate
 
@@ -1065,32 +1224,14 @@ def callbacks(gui, dash:object):
             return one_off_date
 
     @dash.callback(
-        Output('add-freq-toast','is_open'),
-        Input('btn-add-scheduled-transaction-subfrequency','n_clicks'),
-        State('ammend-scheduled-transaction-frequency-radio','value'),
-        State('scheduled-transaction-sub-freq','data'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def add_sub_frequency(n, freq, sub_freq, st_index, selected_account_nickname):  
-        selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-        scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-        if n != 0:
-            if sub_freq:
-                scheduled_transaction._update_frequency(freq, sub_freq)
-                return True
-        
-        raise PreventUpdate
-
-    @dash.callback(
         Output('ammend-scheduled-transaction-frequency-remove-dropdown','options'),
         Input('ammend-scheduled-transaction-remove-frequency','n_clicks'),
+        Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),
         State('ammend-scheduled-transaction-index','data'),
         State('ammend-scheduled-transaction-account','data'),
         prevent_initial_call=True
     )
-    def load_remove_sub_frequency_options(n, st_index, selected_account_nickname):
+    def load_remove_sub_frequency_options(n,n2, st_index, selected_account_nickname):
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
         options = []
@@ -1100,92 +1241,6 @@ def callbacks(gui, dash:object):
                 options += [{'label':sub_freq, 'value':f'{freq}_{sub_freq}'}]
 
         return options
-    
-    @dash.callback(
-        Output('remove-freq-toast','is_open'),
-        Input('btn-remove-scheduled-transaction-subfrequency','n_clicks'),
-        State('ammend-scheduled-transaction-frequency-remove-dropdown','value'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def remove_sub_frequency(n, sub_freq_rule_ls, st_index, selected_account_nickname): 
-        if n != 0:
-            if sub_freq_rule_ls:
-                selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-                scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-                for sub_freq_rule in sub_freq_rule_ls:
-                    freq = sub_freq_rule.split('_')[0]
-                    sub_freq = sub_freq_rule.split('_')[1]
-                    scheduled_transaction._remove_frequency(freq,sub_freq)
-                return True
-        
-        raise PreventUpdate
-
-    @dash.callback(
-        Output('save-toast','is_open'),
-        Input('btn-ammend-scheduled-transaction','n_clicks'),
-        State('ammend-scheduled-transaction-nickname','value'),
-        State('ammend-scheduled-transaction-description','value'),
-        State('ammend-scheduled-transaction-amount','value'),
-        State('ammend-scheduled-transaction-type','value'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def save_scheduled_transaction_changes(n, nickname, description, amount, st_type, st_index, selected_account_nickname):
-        if n!=0:
-            def clean(val:object):
-                if type(val) == list:
-                    return val[0]
-                else:
-                    return val
-
-            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-            if clean(nickname) != scheduled_transaction._summary:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._summary}] -> [{nickname}]')
-                scheduled_transaction._summary = clean(nickname)
-
-            if clean(description) != scheduled_transaction._description:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._description}] -> [{description}]')
-                scheduled_transaction._description = clean(description)
-
-            if clean(amount) != scheduled_transaction._amount:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._amount}] -> [{amount}]')
-                scheduled_transaction._amount = clean(amount)
-
-            if clean(st_type)!= scheduled_transaction._type:
-                gui.dash.logger.info(f'scheduled transaction change: nickname [{scheduled_transaction._type}] -> [{st_type}]')
-                scheduled_transaction._type = clean(st_type)
-
-            if gui._check_save(): 
-                gui._save() 
-                return True
-            else:
-                print('Nothing to Save')    
-
-        raise PreventUpdate
-
-    @dash.callback(
-        Output('remove-st-toast','is_open'),
-        Input('btn-wipe-scheduled-transaction','n_clicks'),
-        State('ammend-scheduled-transaction-index','data'),
-        State('ammend-scheduled-transaction-account','data'),
-        prevent_initial_call=True
-    )
-    def delete_scheduled_transaction(n, st_index, selected_account_nickname):
-        if n != 0:
-            selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
-            scheduled_transaction = selected_account._determine_scheduled_transaction_from_index(st_index)
-            selected_account._remove_scheduled_transaction(scheduled_transaction)
-            
-            if gui._check_save(): 
-                gui._save() 
-                return True
-        
-        raise PreventUpdate
-
 
         #     #    graph = dcc.Graph(id='transaction-graph', figure=fig, className='mb-3')        
         # @dash.callback(

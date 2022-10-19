@@ -90,6 +90,8 @@ class Scheduled_Transaction(object):
                 return _frequency, ft
     
     def _update_frequency(self, _frequency:str, _frequency_timing:object) -> None:
+        if not self._frequency:
+            self._frequency = {}
         if _frequency not in self._frequency.keys():        
             self._frequency[_frequency] = [_frequency_timing]
         else:
