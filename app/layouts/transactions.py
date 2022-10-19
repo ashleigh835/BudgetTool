@@ -141,6 +141,7 @@ ammend_schedule_transaction_modal = dbc.Modal(
     [   dbc.ModalHeader("Ammend Scheduled Transaction"),
         dcc.Store(storage_type='session', clear_data=True, id='ammend-scheduled-transaction-index'),
         dcc.Store(storage_type='session', clear_data=True, id='ammend-scheduled-transaction-account'),
+        dcc.Store(storage_type='session', clear_data=True, id='scheduled-transaction-refresh'),
         dbc.Card(
             [   dbc.FormFloating(
                     [   dbc.Input(type="text", id='ammend-scheduled-transaction-nickname'),
@@ -262,15 +263,6 @@ ammend_schedule_transaction_modal = dbc.Modal(
             [   dbc.Button("Delete Scheduled Transaction", id='btn-wipe-scheduled-transaction', className="ml-auto",color='danger', size="sm", outline=True),
                 dbc.Button("Save Changes", id='btn-ammend-scheduled-transaction', className="ml-auto",color='success', size="sm", outline=True),
             ]
-        ),   
-        dbc.Toast(
-            [html.P("Scheduled transaction permanently removed!", className="mb-0")],
-            id="remove-st-toast",
-            header="Scheduled Transaction Removed",
-            duration=3000,
-            is_open=False, 
-            icon='danger',
-            style={"position": "fixed", "bottom": 66, "right": 10, "width": 350},
         )
     ],
     id="edit-scheduled-transaction-modal",
@@ -563,16 +555,21 @@ def callbacks(gui, dash:object):
         Output({'type': 'monthly_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'monthly_scheduled_transaction_footer','index': MATCH}, 'style'),
         Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'monthly_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'monthly_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_monthly(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_monthly(selected_account_nickname,refresh,id,footer):
         """Populate each monthly scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('monthly',id['index'])
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -601,17 +598,22 @@ def callbacks(gui, dash:object):
         Output({'type': 'weekly_scheduled_transaction_item','index': MATCH}, 'children'),
         Output({'type': 'weekly_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'weekly_scheduled_transaction_footer','index': MATCH}, 'style'),
-        Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("sched-transaction-selected-account-dropdown", "value"),
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'weekly_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'weekly_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_weekly(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_weekly(selected_account_nickname,refresh, id,footer):
         """Populate each weekly scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('weekly',weekdays()[int(id['index'])-1])
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -640,16 +642,21 @@ def callbacks(gui, dash:object):
         Output({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'style'),
         Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'daily_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'daily_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_daily(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_daily(selected_account_nickname,refresh,id,footer):
         """Populate daily scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('daily')
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -690,17 +697,22 @@ def callbacks(gui, dash:object):
         Output({'type': 'one-off_scheduled_transaction_item','index': MATCH}, 'children'),
         Output({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'children'),
         Output({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'style'),
-        Input("sched-transaction-selected-account-dropdown", "value"), 
+        Input("sched-transaction-selected-account-dropdown", "value"),  
+        Input("scheduled-transaction-refresh", 'data'),
         State({'type': 'one-off_scheduled_transaction_item','index': MATCH}, 'id'),
         State({'type': 'one-off_scheduled_transaction_footer','index': MATCH}, 'children')
     )
-    def render_content_scheduled_transaction_one_off_card_content(selected_account_nickname,id,footer):
+    def render_content_scheduled_transaction_one_off_card_content(selected_account_nickname,refresh,id,footer):
         """Populate each one-off scheduled transaction card"""
         selected_account = gui._A_M._determine_account_from_name(selected_account_nickname)
         st_list = selected_account.get_scheduled_transactions_from_key('one-off',id['index'])
         children = []
         footer = footer or []
         card_amt = 0
+
+        if ctx.triggered_id == 'scheduled-transaction-refresh':
+            if not refresh:
+                raise PreventUpdate
 
         for st in st_list:
             children += build_scheduled_transaction_badge(st, id['index'])
@@ -758,6 +770,7 @@ def callbacks(gui, dash:object):
             'data' : {
                 'index': Output('ammend-scheduled-transaction-index','data'),
                 'account': Output('ammend-scheduled-transaction-account','data'),
+                'refresh_count' : Output("scheduled-transaction-refresh", 'data'),
             }
         },
         inputs={
@@ -842,7 +855,8 @@ def callbacks(gui, dash:object):
                 },
                 'data' : {
                     'index': None,
-                    'account': states.account.name
+                    'account': states.account.name,
+                    'refresh_count' : no_update
                 }
             }
         
@@ -879,7 +893,8 @@ def callbacks(gui, dash:object):
                 },
                 'data' : {
                     'index': indx,
-                    'account': states.account.name
+                    'account': states.account.name,
+                    'refresh_count' : no_update
                 }
             }
 
@@ -930,7 +945,8 @@ def callbacks(gui, dash:object):
                     },
                     'data' : {
                         'index': None,
-                        'account': states.account.name
+                        'account': states.account.name,
+                        'refresh_count' : True
                     }
                 }
             else:
@@ -971,7 +987,8 @@ def callbacks(gui, dash:object):
                     },
                     'data' : {
                         'index': None,
-                        'account': states.account.name
+                        'account': states.account.name,
+                        'refresh_count' : True
                     }
                 }
             else:
@@ -998,7 +1015,7 @@ def callbacks(gui, dash:object):
                                 'rem_btn' : {'str':no_update,'color':no_update,'style':no_update}
                             }
                         },
-                        'data' : {'index':no_update,'account':no_update}
+                        'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                     }
                 else:
                     if amt_invalid | sum_invalid:
@@ -1019,7 +1036,7 @@ def callbacks(gui, dash:object):
                                         'rem_btn' : {'str':no_update,'color':no_update,'style':no_update}
                                     }
                                 },
-                                'data' : {'index':no_update,'account':no_update}
+                                'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                             }
                     else:
                         indx = states.data.index
@@ -1045,7 +1062,7 @@ def callbacks(gui, dash:object):
                                     'rem_btn' : {'style':no_update,'str':'Remove frequency','color':'danger'}
                                 }
                             },
-                            'data' : {'index':indx,'account':no_update}
+                            'data' : {'index':indx, 'account':no_update, 'refresh_count' : no_update}
                         }
             elif ctx.triggered_id == 'ammend-scheduled-transaction-remove-frequency':
                 if states.freq.rem_btn_str == 'Hide':
@@ -1067,7 +1084,7 @@ def callbacks(gui, dash:object):
                                 'rem_btn' : content_defaults['freq']['rem_btn']
                             }
                         },
-                        'data' : {'index':no_update,'account':no_update}
+                        'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                     }
                 else:
                     
@@ -1088,7 +1105,7 @@ def callbacks(gui, dash:object):
                                 'rem_btn' : {'style':content_defaults['freq']['rem_btn']['style'],'str':'Hide','color':'secondary'}
                             }
                         },
-                        'data' : {'index':no_update,'account':no_update}
+                        'data' : {'index':no_update,'account':no_update, 'refresh_count' : no_update}
                     }
         
         elif c.sub_freq_buttons.add.triggered:
@@ -1111,7 +1128,7 @@ def callbacks(gui, dash:object):
                             'rem_btn' : content_defaults['freq']['rem_btn'],
                         }
                     },
-                    'data' : { 'index': no_update, 'account': no_update }
+                    'data' : { 'index': no_update, 'account': no_update, 'refresh_count' : no_update}
                 }
             raise PreventUpdate
         
@@ -1152,7 +1169,7 @@ def callbacks(gui, dash:object):
                             'rem_btn' : rem_btn,
                         }
                     },
-                    'data' : { 'index': no_update, 'account': no_update }
+                    'data' : { 'index': no_update, 'account': no_update, 'refresh_count' : no_update }
                 }
             raise PreventUpdate
 
