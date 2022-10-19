@@ -136,3 +136,4 @@ data/*
 
 # configuration files
 *.json
+*.CSV
