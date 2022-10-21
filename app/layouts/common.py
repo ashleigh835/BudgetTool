@@ -120,7 +120,7 @@ def account_creation_modal(gui, is_open:bool=False) -> html:
         is_open=is_open,
     )
 
-def account_card(selected_account_nickname:str, data:dict) -> list:
+def account_card(selected_account_nickname:str, data:dict, manage:bool=False) -> list:
     header = dbc.CardHeader([html.H5(selected_account_nickname)])
     footer = ""
     children_sm = []
@@ -133,13 +133,27 @@ def account_card(selected_account_nickname:str, data:dict) -> list:
         else:
             children_big+=[html.Div(f"{info}: {data[selected_account_nickname][info]}", className="card-text")]
 
+    style = {}
+    if not manage:
+        style = {'display':'none'}
+        
     return [
         dbc.Row(
             dbc.Col(
                 dbc.Card(
                     [   header,
                         dbc.CardBody(children_big + [html.Div(style={'padding':'1%'})] + children_sm),
-                        footer
+                        footer,
+                        dbc.Badge(
+                            "manage",
+                            color="info",
+                            pill=True,
+                            className="me-1 text-decoration-none position-absolute top-0 start-50 translate-middle",
+                            href='#',
+                            n_clicks = 0,
+                            id={'type':f'manage_a','index':selected_account_nickname},
+                            style=style
+                        )
                     ],
                     className='mb-3', # w-50',
                     # style = {"height": "25vh"}

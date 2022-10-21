@@ -3,7 +3,7 @@ from app.account import Account_Manager
 
 from app.layouts.home import page_layout as h_page, tab_overview, tab_accounts
 from app.layouts.transactions import page_layout as t_page, tab_transactions_summary, tab_scheduled_transactions, callbacks as transaction_callbacks
-from app.layouts.settings import page_layout as s_page
+from app.layouts.settings import page_layout as s_page, tab_settings_account_management
 from app.layouts.common import nav_bar, account_creation_modal
 
 import dash_bootstrap_components as dbc
@@ -83,6 +83,7 @@ class App(object):
         self.layouts = {
             'Home':{'tabs':{}},'Settings':{'tabs':{}},
             'Transactions':{'tabs':{}},'Settings':{'tabs':{}},
+            'Settings':{'tabs':{}},'Settings':{'tabs':{}},
         }
         if len(self._A_M._accounts) == 0:
             self.layouts['Home']['tabs']['overview'] = html.Div("No Accounts Found")
@@ -97,7 +98,8 @@ class App(object):
             
             self.layouts['Transactions']['tabs']['summary'] = self._get_tab_transaction_summary_layout()
             self.layouts['Transactions']['tabs']['sched'] = self._get_tab_transaction_scheduled_layout()
-                
+
+        self.layouts['Settings']['tabs']['account_management'] = self._get_tab_settings_account_management_layout()                
         self.layouts['Home']['tabs']['accounts'] = self._get_tab_accounts_layout()
 
     def _get_tab_overview_layout(self, selected_account):
@@ -118,6 +120,9 @@ class App(object):
     def _get_tab_transaction_scheduled_layout(self):
         return tab_scheduled_transactions(self._A_M._return_accounts_summary())
 
+    def _get_tab_settings_account_management_layout(self):
+        summary = self._A_M._return_accounts_summary()
+        return tab_settings_account_management(summary)
 
     def callbacks(self, dash:object):
         @dash.callback(Output('page-content', 'children'),[Input('url', 'pathname')])
@@ -156,6 +161,8 @@ class App(object):
                 return self.layouts['Transactions']['tabs']['summary']
             elif tab == 'sched transactions':
                 return self.layouts['Transactions']['tabs']['sched']
+            elif tab == 'account management':
+                return self.layouts['Settings']['tabs']['account_management']
             
         @dash.callback(
             Output("first-time-set-up-modal", "is_open"), 
