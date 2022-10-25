@@ -8,7 +8,7 @@ from app.layouts.common import nav_bar, account_creation_modal
 
 import dash_bootstrap_components as dbc
 import dash
-from dash import dcc, html, ctx #, MATCH, ALL
+from dash import dcc, html, ctx, no_update, ALL#, MATCH
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
@@ -165,39 +165,121 @@ class App(object):
                 return self.layouts['Settings']['tabs']['account_management']
             
         @dash.callback(
-            Output("first-time-set-up-modal", "is_open"), 
-            Output("account_name", "invalid"), Output("account_holder", "invalid"), 
-            Output('account_name_feedback','children'),
-            Output('memory','data'),
-
-            Input('create-account','n_clicks'),
-            State('account_name','value'), State('account_name_feedback','children'),
-            State('account_holder','value'),
-            State('account_type','value'),
-            State('account_provider','value'),
+            output = {
+                'open_states' : {'modal' : Output("first-time-set-up-modal", "is_open"), },
+                'modal_content' : {
+                    'header' : {'children' : Output('account-modal-header','children')},
+                    'account_name' : {
+                        'invalid' : Output("account_name", "invalid"),
+                        'feedback' : Output('account_name_feedback','children'),  
+                        'value' : Output('account_name','value')
+                    },  
+                    'account_holder' : {
+                        'invalid' : Output("account_holder", "invalid"), 
+                        'value' : Output('account_holder','value'),
+                    },                    
+                    'account_type' : { 'value' : Output('account_type','value')},
+                    'account_provider' : { 'value' : Output('account_provider','value')},
+                },
+                'data' : { 'config' : Output('memory','data')}
+            },
+            inputs={
+                "activate_buttons" : {
+                    'modal_create' : Input('create-account','n_clicks'),
+                    'add_new' : Input('account-management-add-new','n_clicks'),
+                    'manage' : Input({'type':f'manage_a','index':ALL}, 'n_clicks')
+                },
+                'states' : {
+                    'account_name' : State('account_name','value'),
+                    'account_holder' : State('account_holder','value'),
+                    'account_type' : State('account_type','value'),
+                    'account_provider' : State('account_provider','value'),
+                }
+            },
             prevent_initial_call = True
         )
-        def add_new_account_modal(create_n_clicks,account_name,account_name_feedback,account_holder,account_type,account_provider):
-            if create_n_clicks>0:
+        def add_new_account_modal(activate_buttons, states):
+            c = ctx.args_grouping
+            if c.activate_buttons.modal_create.triggered:
                 account_name_invalid = False
                 account_holder_invalid = False
+                account_name_feedback = ''
 
-                if not account_name: account_name_invalid = True
-                if not account_holder: account_holder_invalid = True                
+                if not states.account_name: account_name_invalid = True
+                if not states.account_holder: account_holder_invalid = True                
                 
-                if account_name in self._A_M._account_nicknames:
+                if states.account_name in self._A_M._account_nicknames:
                     account_name_invalid = True 
                     account_name_feedback = 'Nickname already exists. Nicknames must be unique'
 
                 if (not account_name_invalid) & (not account_holder_invalid):
                     dash.logger.info('Adding New Account')  
-                    self._A_M._add_account(account_name, account_holder, account_type, account_provider)                    
+                    self._A_M._add_account(
+                        states.account_name, 
+                        states.account_holder, 
+                        states.account_type,
+                        states.account_provider
+                    )                    
                     if self._check_save(): self._save()  
 
-                    return False, False, False, '', self._account_config
+                    return {
+                        'open_states' : {'modal' : False },
+                        'modal_content' : {
+                            'header' : {'children' : 'Initial Account Set-Up'},
+                            'account_name' : {'invalid':False,'feedback':'','value':None},
+                            'account_holder' : {'invalid' : False, 'value':no_update } ,
+                            'account_type' : {'value':no_update } ,
+                            'account_provider' : {'value':no_update } 
+                        },
+                        'data' : { 'config' : self._account_config}
+                    }
                 
-                return True, account_name_invalid, account_holder_invalid, account_name_feedback, self._account_config
+                return {
+                    'open_states' : {'modal' : True },
+                    'modal_content' : {
+                        'header' : {'children' : no_update},
+                        'account_name' : {'invalid':account_name_invalid,'feedback':account_name_feedback,'value':None},
+                        'account_holder' : {'invalid' : account_holder_invalid , 'value':no_update } ,
+                        'account_type' : {'value':no_update } ,
+                        'account_provider' : {'value':no_update } 
+                    },
+                    'data' : { 'config' : self._account_config}
+                }
 
+            elif c.activate_buttons.add_new.triggered:
+                if c.activate_buttons.add_new.value:
+                    return {
+                        'open_states' : {'modal' : True },
+                        'modal_content' : {
+                            'header' : {'children' : no_update},
+                            'account_name' : {'invalid':False,'feedback':'','value':None},
+                            'account_holder' : {'invalid' : False, 'value':no_update } ,
+                            'account_type' : {'value':no_update } ,
+                            'account_provider' : {'value':no_update } 
+                        },
+                        'data' : { 'config' : self._account_config}
+                    }
+
+                else:
+                    raise PreventUpdate
+
+            elif (True in [i.triggered for i in c.activate_buttons.manage])& ([(i.value) for i in c.activate_buttons.manage] != [0]* len(c.activate_buttons.manage)):
+                account_name = ctx.triggered_id['index']
+                selected_account = self._A_M._determine_account_from_name(account_name)
+                return {
+                    'open_states' : {'modal' : True },
+                    'modal_content' : {
+                        'header' : {'children' : 'Account Management'},
+                        'account_name' : {'invalid':False,'feedback':'','value':selected_account._name},
+                        'account_holder' : {'invalid' : False, 'value':selected_account._holder } ,
+                        'account_type' : {'value':selected_account._type  } ,
+                        'account_provider' : {'value':selected_account._provider } 
+                    },
+                    'data' : { 'config' : self._account_config}
+                }
+
+
+                raise PreventUpdate
             else:
                 raise PreventUpdate
  
