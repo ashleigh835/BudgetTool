@@ -69,7 +69,7 @@ def account_creation_modal(gui, is_open:bool=False) -> html:
             className="mb-3",
             )
     return dbc.Modal(
-        [   dbc.ModalHeader("Initial Account Set-Up"),
+        [   dbc.ModalHeader("Initial Account Set-Up", id="account-modal-header"),
             dbc.Card(
                 [   dbc.FormFloating(
                         [   dbc.Input(type="text", id='account_name'),
